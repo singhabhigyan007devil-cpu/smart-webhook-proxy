@@ -57,3 +57,31 @@ class IdempotencyKey(Base):
 
     key_hash = Column(String(255), primary_key=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class Incident(Base):
+    __tablename__ = "incidents"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    endpoint_id = Column(String(36), ForeignKey("endpoints.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(50), default="todo", nullable=False, index=True)  # todo, in_progress, done
+    priority = Column(String(50), default="medium", nullable=False, index=True)  # urgent, high, medium, low
+    assignee = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    endpoint = relationship("Endpoint")
+    comments = relationship("IncidentComment", back_populates="incident", cascade="all, delete-orphan")
+
+class IncidentComment(Base):
+    __tablename__ = "incident_comments"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    incident_id = Column(String(36), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    commenter = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    incident = relationship("Incident", back_populates="comments")
+

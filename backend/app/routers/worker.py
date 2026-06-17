@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from backend.app.db import get_db
-from backend.app.models import Endpoint, WebhookLog
+from backend.app.models import Endpoint, WebhookLog, Incident
 from backend.app.config import settings
 from backend.app.idempotency import check_and_register_event
 from backend.app.circuit_breaker import register_success, register_failure
@@ -190,8 +190,41 @@ async def process_webhook_task(
                 log.error_message = f"Dropped: Max retries ({max_retries_limit}) exceeded. Last error: {error_msg}"
             await db.commit()
 
+            # Auto-create Webhook Incident in the database
+            try:
+                incident_res = await db.execute(
+                    select(Incident)
+                    .where(Incident.endpoint_id == endpoint_id, Incident.status != "done")
+                )
+                existing_incident = incident_res.scalars().first()
+                
+                if not existing_incident:
+                    severity = "urgent" if tripped else "high"
+                    title = f"Delivery failed for slug /p/{endpoint.slug}"
+                    description = (
+                        f"Webhook delivery has permanently failed.\n\n"
+                        f"**Endpoint Name:** {endpoint.source_name}\n"
+                        f"**Destination URL:** {endpoint.target_url}\n"
+                        f"**Reason:** {log.error_message}\n"
+                        f"**Last HTTP Code:** {status_code or 'N/A'}"
+                    )
+                    
+                    new_incident = Incident(
+                        endpoint_id=endpoint_id,
+                        title=title,
+                        description=description,
+                        status="todo",
+                        priority=severity
+                    )
+                    db.add(new_incident)
+                    await db.commit()
+                    print(f"[WORKER] Created Incident for dropped webhook on slug /p/{endpoint.slug}")
+            except Exception as e:
+                print(f"[WORKER ERROR] Failed to create database Incident: {e}")
+
             # Trigger Slack/Discord Alert Webhook if configured
             if endpoint.alert_webhook_url:
                 await send_alert_webhook(endpoint, log.error_message, tripped=tripped)
+
 
     return Response(content="Task processed", status_code=status.HTTP_200_OK)

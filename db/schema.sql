@@ -96,3 +96,64 @@ create policy webhook_logs_all_policy on public.webhook_logs
 -- Idempotency Keys Policies (internal use, but lock to authenticated just in case)
 create policy idempotency_all_policy on public.idempotency_keys
     for all using (true);
+
+
+-- 5. Incidents Table
+create table if not exists public.incidents (
+    id uuid default gen_random_uuid() primary key,
+    endpoint_id uuid references public.endpoints(id) on delete cascade not null,
+    title text not null,
+    description text,
+    status text default 'todo' not null check (status in ('todo', 'in_progress', 'done')),
+    priority text default 'medium' not null check (priority in ('urgent', 'high', 'medium', 'low')),
+    assignee text,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS on incidents
+alter table public.incidents enable row level security;
+
+-- Indexing for performance
+create index if not exists incidents_endpoint_idx on public.incidents(endpoint_id);
+create index if not exists incidents_status_idx on public.incidents(status);
+
+-- 6. Incident Comments Table
+create table if not exists public.incident_comments (
+    id uuid default gen_random_uuid() primary key,
+    incident_id uuid references public.incidents(id) on delete cascade not null,
+    commenter text not null,
+    body text not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS on comments
+alter table public.incident_comments enable row level security;
+
+-- Indexing
+create index if not exists incident_comments_incident_idx on public.incident_comments(incident_id);
+
+
+-- ==========================================
+-- ROW LEVEL SECURITY (RLS) POLICIES FOR INCIDENTS
+-- ==========================================
+
+create policy incidents_all_policy on public.incidents
+    for all using (
+        exists (
+            select 1 from public.endpoints
+            where public.endpoints.id = incidents.endpoint_id
+              and public.endpoints.user_id = (select auth.uid())
+        )
+    );
+
+create policy incident_comments_all_policy on public.incident_comments
+    for all using (
+        exists (
+            select 1 from public.incidents
+            join public.endpoints on public.endpoints.id = public.incidents.endpoint_id
+            where public.incidents.id = incident_comments.incident_id
+              and public.endpoints.user_id = (select auth.uid())
+        )
+    );
+

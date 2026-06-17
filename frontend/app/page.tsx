@@ -45,6 +45,27 @@ interface Endpoint {
   backoff_base?: number;
 }
 
+interface Incident {
+  id: string;
+  endpoint_id: string;
+  title: string;
+  description: string | null;
+  status: "todo" | "in_progress" | "done";
+  priority: "urgent" | "high" | "medium" | "low";
+  assignee: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface IncidentComment {
+  id: string;
+  incident_id: string;
+  commenter: string;
+  body: string;
+  created_at: string;
+}
+
+
 interface WebhookLog {
   id: string;
   endpoint_id: string;
@@ -87,6 +108,22 @@ export default function Dashboard() {
   const [selectedLog, setSelectedLog] = useState<WebhookLog | null>(null);
   const [copiedSlugId, setCopiedSlugId] = useState<string | null>(null);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
+  
+  // Incidents & Comments State
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [incidentComments, setIncidentComments] = useState<IncidentComment[]>([]);
+  const [newCommentBody, setNewCommentBody] = useState("");
+  const [commenterName, setCommenterName] = useState("");
+  const [assigneeInput, setAssigneeInput] = useState("");
+  
+  // Navigation Tabs
+  const [activeTab, setActiveTab] = useState<"logs" | "board">("logs");
+  
+  // Command Menu Overlay (Ctrl+K)
+  const [showCommandMenu, setShowCommandMenu] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+
   
   // Create Endpoint Form State
   const [sourceName, setSourceName] = useState("");
@@ -158,8 +195,10 @@ export default function Dashboard() {
     setUser(null);
     setEndpoints([]);
     setLogs([]);
+    setIncidents([]);
     setSelectedEndpoint(null);
     setSelectedLog(null);
+    setSelectedIncident(null);
   };
 
   // --- Data Fetching ---
@@ -189,10 +228,119 @@ export default function Dashboard() {
         const data = await logsRes.json();
         setLogs(data);
       }
+
+      // 4. Fetch Webhook Incidents
+      const incRes = await fetch(`${API_BASE}/api/incidents`, { headers });
+      if (incRes.ok) {
+        const data = await incRes.json();
+        setIncidents(data);
+      }
     } catch (err) {
       console.error("Error polling backend dashboard data", err);
     }
   }, [apiKey]);
+
+  // Comments & Incident Mutator functions
+  const fetchIncidentComments = useCallback(async (incidentId: string) => {
+    if (!apiKey) return;
+    try {
+      const headers = { "Authorization": `Bearer ${apiKey}` };
+      const response = await fetch(`${API_BASE}/api/incidents/${incidentId}/comments`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setIncidentComments(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch incident comments", err);
+    }
+  }, [apiKey]);
+
+  useEffect(() => {
+    if (selectedIncident) {
+      fetchIncidentComments(selectedIncident.id);
+      setAssigneeInput(selectedIncident.assignee || "");
+    } else {
+      setIncidentComments([]);
+    }
+  }, [selectedIncident, fetchIncidentComments]);
+
+  const handleUpdateIncident = async (id: string, updates: Partial<Incident>) => {
+    if (!apiKey) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/incidents/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(updates)
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setIncidents(prev => prev.map(inc => inc.id === id ? updated : inc));
+        if (selectedIncident?.id === id) {
+          setSelectedIncident(updated);
+        }
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to update incident", err);
+    }
+  };
+
+  const handlePostComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedIncident || !newCommentBody.trim()) return;
+    const name = commenterName.trim() || user?.email.split("@")[0] || "developer";
+    try {
+      const response = await fetch(`${API_BASE}/api/incidents/${selectedIncident.id}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          commenter: name,
+          body: newCommentBody.trim()
+        })
+      });
+      if (response.ok) {
+        setNewCommentBody("");
+        fetchIncidentComments(selectedIncident.id);
+      }
+    } catch (err) {
+      console.error("Failed to post comment", err);
+    }
+  };
+
+  // Keyboard Shortcuts Effect
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowCommandMenu(prev => !prev);
+      }
+      
+      if (e.key === "Escape") {
+        setShowCommandMenu(false);
+      }
+      
+      if (!showCommandMenu) {
+        const activeTag = document.activeElement?.tagName.toLowerCase();
+        if (activeTag !== "input" && activeTag !== "textarea") {
+          if (e.key.toLowerCase() === "b") {
+            setActiveTab("board");
+          }
+          if (e.key.toLowerCase() === "l") {
+            setActiveTab("logs");
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showCommandMenu]);
+
 
   // Polling loop
   useEffect(() => {
@@ -312,6 +460,60 @@ export default function Dashboard() {
       setCopiedKeyId(id);
       setTimeout(() => setCopiedKeyId(null), 2000);
     }
+  };
+
+  const renderBoardColumn = (colStatus: "todo" | "in_progress" | "done", label: string, badgeStyles: string) => {
+    const colIncidents = incidents.filter(i => i.status === colStatus);
+    return (
+      <div className="flex flex-col space-y-3 bg-surface-1/40 border border-hairline rounded p-3 min-h-[400px]">
+        <div className="flex items-center justify-between pb-2 border-b border-hairline">
+          <span className={`text-[10px] uppercase font-semibold px-2.5 py-0.5 rounded-full border ${badgeStyles}`}>
+            {label}
+          </span>
+          <span className="text-[10px] text-ink-tertiary font-mono">{colIncidents.length}</span>
+        </div>
+        
+        <div className="flex-1 space-y-2 overflow-y-auto max-h-[450px] pr-1">
+          {colIncidents.length === 0 ? (
+            <div className="text-[10px] text-ink-tertiary italic text-center py-4">No incidents</div>
+          ) : (
+            colIncidents.map(inc => {
+              const ep = endpoints.find(e => e.id === inc.endpoint_id);
+              const slugLabel = ep ? ep.slug : "deleted";
+              
+              let priorityBadge = "border-hairline text-ink-subtle bg-surface-2";
+              if (inc.priority === "urgent") priorityBadge = "border-red-500/30 text-red-400 bg-red-950/20";
+              if (inc.priority === "high") priorityBadge = "border-orange-500/30 text-orange-400 bg-orange-950/20";
+              if (inc.priority === "medium") priorityBadge = "border-amber-500/30 text-amber-400 bg-amber-950/20";
+              
+              return (
+                <div 
+                  key={inc.id}
+                  onClick={() => setSelectedIncident(inc)}
+                  className={`bg-surface-2 border border-hairline hover:border-hairline-strong rounded p-3 cursor-pointer transition-all duration-150 ${
+                    selectedIncident?.id === inc.id ? "ring-1 ring-primary border-primary bg-primary/5" : ""
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <span className={`text-[9px] uppercase font-semibold px-1.5 py-0.5 rounded border ${priorityBadge}`}>
+                      {inc.priority}
+                    </span>
+                    <span className="text-[9px] font-mono text-ink-tertiary">/p/{slugLabel}</span>
+                  </div>
+                  <h4 className="text-xs font-semibold text-ink mt-2 line-clamp-2">{inc.title}</h4>
+                  {inc.assignee && (
+                    <div className="mt-3 flex items-center space-x-1.5 text-[9px] text-primary font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      <span>{inc.assignee}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
   };
 
   // --- Render Login Screen ---
@@ -684,91 +886,119 @@ export default function Dashboard() {
           {/* RIGHT: Webhooks Log Stream Table (Column span 7) */}
           <div className="lg:col-span-7 bg-surface-1 border border-hairline rounded-lg overflow-hidden">
             <div className="p-4 border-b border-hairline flex items-center justify-between">
-              <h3 className="text-sm font-semibold tracking-tight text-ink flex items-center space-x-2">
-                <Terminal className="w-4 h-4 text-primary" />
-                <span>Live Event Delivery logs</span>
-              </h3>
-              <div className="flex items-center space-x-2">
-                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                <span className="text-[10px] uppercase font-semibold text-ink-subtle tracking-wider">
-                  Listening
-                </span>
+              <div className="flex items-center space-x-4">
+                <button 
+                  onClick={() => setActiveTab("logs")}
+                  className={`text-sm font-semibold tracking-tight transition-colors duration-150 flex items-center space-x-2 pb-0.5 ${
+                    activeTab === "logs" ? "text-ink border-b-2 border-primary" : "text-ink-subtle hover:text-ink"
+                  }`}
+                >
+                  <Terminal className="w-4 h-4" />
+                  <span>Live Event Logs</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab("board")}
+                  className={`text-sm font-semibold tracking-tight transition-colors duration-150 flex items-center space-x-2 pb-0.5 ${
+                    activeTab === "board" ? "text-ink border-b-2 border-primary" : "text-ink-subtle hover:text-ink"
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>Incident Board ({incidents.filter(i => i.status !== "done").length})</span>
+                </button>
               </div>
+
+              {activeTab === "logs" && (
+                <div className="flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  <span className="text-[10px] uppercase font-semibold text-ink-subtle tracking-wider">
+                    Listening
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Dense Monospace Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-hairline text-ink-subtle text-[11px] font-semibold uppercase bg-surface-2/40">
-                    <th className="py-2.5 px-4">Status</th>
-                    <th className="py-2.5 px-4">Slug</th>
-                    <th className="py-2.5 px-4">Method</th>
-                    <th className="py-2.5 px-4">Code</th>
-                    <th className="py-2.5 px-4">Retry</th>
-                    <th className="py-2.5 px-4 text-right">Time</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline font-mono text-[11px]">
-                  {logs.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-ink-tertiary">
-                        No webhook payloads ingested yet.
-                      </td>
+            {activeTab === "board" ? (
+              <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-canvas min-h-[450px]">
+                {renderBoardColumn("todo", "Todo", "bg-amber-500/10 border-amber-500/20 text-amber-400")}
+                {renderBoardColumn("in_progress", "In Progress", "bg-blue-500/10 border-blue-500/20 text-blue-400")}
+                {renderBoardColumn("done", "Done", "bg-emerald-500/10 border-emerald-500/20 text-success")}
+              </div>
+            ) : (
+              /* Dense Monospace Table */
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-hairline text-ink-subtle text-[11px] font-semibold uppercase bg-surface-2/40">
+                      <th className="py-2.5 px-4">Status</th>
+                      <th className="py-2.5 px-4">Slug</th>
+                      <th className="py-2.5 px-4">Method</th>
+                      <th className="py-2.5 px-4">Code</th>
+                      <th className="py-2.5 px-4">Retry</th>
+                      <th className="py-2.5 px-4 text-right">Time</th>
                     </tr>
-                  ) : (
-                    logs.map((log) => {
-                      const date = new Date(log.created_at);
-                      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                      const ep = endpoints.find(e => e.id === log.endpoint_id);
-                      const slugLabel = ep ? ep.slug : "deleted";
+                  </thead>
+                  <tbody className="divide-y divide-hairline font-mono text-[11px]">
+                    {logs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-ink-tertiary">
+                          No webhook payloads ingested yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      logs.map((log) => {
+                        const date = new Date(log.created_at);
+                        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        const ep = endpoints.find(e => e.id === log.endpoint_id);
+                        const slugLabel = ep ? ep.slug : "deleted";
 
-                      // Status styles
-                      let statusBadge = "";
-                      if (log.delivery_status === "success") {
-                        statusBadge = "bg-emerald-500/10 text-success border-emerald-500/20";
-                      } else if (log.delivery_status === "failed") {
-                        statusBadge = "bg-amber-500/10 text-amber-400 border-amber-500/20";
-                      } else if (log.delivery_status === "dropped") {
-                        statusBadge = "bg-red-500/10 text-red-400 border-red-500/20";
-                      } else {
-                        statusBadge = "bg-blue-500/10 text-blue-400 border-blue-500/20";
-                      }
+                        // Status styles
+                        let statusBadge = "";
+                        if (log.delivery_status === "success") {
+                          statusBadge = "bg-emerald-500/10 text-success border-emerald-500/20";
+                        } else if (log.delivery_status === "failed") {
+                          statusBadge = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                        } else if (log.delivery_status === "dropped") {
+                          statusBadge = "bg-red-500/10 text-red-400 border-red-500/20";
+                        } else {
+                          statusBadge = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                        }
 
-                      return (
-                        <tr 
-                          key={log.id}
-                          onClick={() => setSelectedLog(log)}
-                          className={`hover:bg-surface-2/30 cursor-pointer transition-colors duration-100 ${
-                            selectedLog?.id === log.id ? "bg-surface-2/50" : ""
-                          }`}
-                        >
-                          <td className="py-2 px-4">
-                            <span className={`px-2 py-0.5 rounded-full border text-[9px] font-semibold uppercase ${statusBadge}`}>
-                              {log.delivery_status}
-                            </span>
-                          </td>
-                          <td className="py-2 px-4 text-ink-muted">{slugLabel}</td>
-                          <td className="py-2 px-4 text-ink-tertiary">POST</td>
-                          <td className="py-2 px-4">
-                            {log.response_code ? (
-                              <span className={log.response_code >= 200 && log.response_code < 300 ? "text-success" : "text-red-400"}>
-                                {log.response_code}
+                        return (
+                          <tr 
+                            key={log.id}
+                            onClick={() => setSelectedLog(log)}
+                            className={`hover:bg-surface-2/30 cursor-pointer transition-colors duration-100 ${
+                              selectedLog?.id === log.id ? "bg-surface-2/50" : ""
+                            }`}
+                          >
+                            <td className="py-2 px-4">
+                              <span className={`px-2 py-0.5 rounded-full border text-[9px] font-semibold uppercase ${statusBadge}`}>
+                                {log.delivery_status}
                               </span>
-                            ) : (
-                              <span className="text-ink-tertiary">—</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-4 text-ink-muted">x{log.retry_count}</td>
-                          <td className="py-2 px-4 text-right text-ink-tertiary">{timeStr}</td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                            </td>
+                            <td className="py-2 px-4 text-ink-muted">{slugLabel}</td>
+                            <td className="py-2 px-4 text-ink-tertiary">POST</td>
+                            <td className="py-2 px-4">
+                              {log.response_code ? (
+                                <span className={log.response_code >= 200 && log.response_code < 300 ? "text-success" : "text-red-400"}>
+                                  {log.response_code}
+                                </span>
+                              ) : (
+                                <span className="text-ink-tertiary">—</span>
+                              )}
+                            </td>
+                            <td className="py-2 px-4 text-ink-muted">x{log.retry_count}</td>
+                            <td className="py-2 px-4 text-right text-ink-tertiary">{timeStr}</td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
+
         </section>
 
         {/* Selected Endpoint Info card below */}
@@ -970,6 +1200,207 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      {/* 4. Slide-out drawer inspect panel for Incidents (From Right) */}
+      <div 
+        className={`fixed top-0 right-0 h-full w-[500px] bg-surface-1 border-l border-hairline z-50 transform transition-transform duration-200 ease-in-out shadow-2xl flex flex-col ${
+          selectedIncident ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        {selectedIncident && (
+          <>
+            {/* Drawer Header */}
+            <div className="h-[56px] border-b border-hairline bg-surface-2 flex items-center justify-between px-6 shrink-0">
+              <div className="flex items-center space-x-2">
+                <Layers className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-sm text-ink">Incident Details</span>
+              </div>
+              <button 
+                onClick={() => setSelectedIncident(null)}
+                className="p-1 rounded bg-surface-1 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors duration-150"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Drawer Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              
+              {/* Properties Box */}
+              <div className="bg-surface-2 border border-hairline rounded-lg p-4 font-mono text-xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-subtle">Status:</span>
+                  <select 
+                    value={selectedIncident.status}
+                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { status: e.target.value as any })}
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary"
+                  >
+                    <option value="todo">Todo</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="done">Done (Resolved)</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-subtle">Priority:</span>
+                  <select 
+                    value={selectedIncident.priority}
+                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { priority: e.target.value as any })}
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary"
+                  >
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-subtle">Assignee:</span>
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="text" 
+                      placeholder="Unassigned" 
+                      value={assigneeInput}
+                      onChange={(e) => setAssigneeInput(e.target.value)}
+                      onBlur={() => handleUpdateIncident(selectedIncident.id, { assignee: assigneeInput.trim() })}
+                      className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Title & Description */}
+              <div className="space-y-2">
+                <h3 className="text-base font-semibold text-ink leading-tight">{selectedIncident.title}</h3>
+                <div className="text-xs text-ink-muted bg-surface-2 border border-hairline rounded p-4 whitespace-pre-wrap font-mono leading-relaxed">
+                  {selectedIncident.description}
+                </div>
+              </div>
+
+              {/* Comments Section */}
+              <div className="space-y-4 pt-4 border-t border-hairline">
+                <h4 className="text-xs font-semibold text-ink-subtle uppercase tracking-wider">Comments Stream</h4>
+                
+                <div className="space-y-3">
+                  {incidentComments.length === 0 ? (
+                    <p className="text-[11px] text-ink-tertiary italic">No updates or comments posted yet.</p>
+                  ) : (
+                    incidentComments.map(c => (
+                      <div key={c.id} className="bg-surface-2 border border-hairline rounded p-3 text-xs space-y-1">
+                        <div className="flex justify-between text-[10px] text-ink-tertiary">
+                          <span className="font-semibold text-primary">{c.commenter}</span>
+                          <span>{new Date(c.created_at).toLocaleTimeString()}</span>
+                        </div>
+                        <p className="text-ink-muted leading-relaxed font-sans">{c.body}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Post comment form */}
+                <form onSubmit={handlePostComment} className="space-y-2 pt-2">
+                  <div className="flex space-x-2">
+                    <input 
+                      type="text" 
+                      placeholder="Your name..." 
+                      value={commenterName}
+                      onChange={(e) => setCommenterName(e.target.value)}
+                      className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2.5 py-1.5 focus:outline-none w-1/3"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Add status notes or debugging comment..." 
+                      value={newCommentBody}
+                      onChange={(e) => setNewCommentBody(e.target.value)}
+                      required
+                      className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2.5 py-1.5 focus:outline-none flex-1"
+                    />
+                  </div>
+                  <button 
+                    type="submit" 
+                    className="w-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 text-xs rounded font-medium py-1.5 transition-colors"
+                  >
+                    Post Comment
+                  </button>
+                </form>
+              </div>
+
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 5. Command Menu Overlay (Ctrl+K) */}
+      {showCommandMenu && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowCommandMenu(false)}
+          />
+          
+          {/* Command Menu Card */}
+          <div className="bg-surface-1 border border-hairline w-full max-w-lg rounded-lg shadow-2xl overflow-hidden relative z-10 flex flex-col max-h-[350px]">
+            {/* Search Input */}
+            <div className="flex items-center px-4 py-3 border-b border-hairline">
+              <Search className="w-4 h-4 text-ink-subtle shrink-0 mr-3" />
+              <input 
+                type="text" 
+                placeholder="Type a command or search endpoints..." 
+                value={commandQuery}
+                onChange={(e) => setCommandQuery(e.target.value)}
+                autoFocus
+                className="bg-transparent text-ink text-sm w-full focus:outline-none"
+              />
+              <span className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">
+                esc
+              </span>
+            </div>
+
+            {/* Filtered Items */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              <div className="text-[10px] text-ink-tertiary px-2 py-1 uppercase font-semibold">Commands</div>
+              
+              {/* Static Commands */}
+              {[
+                { label: "Switch to Live Event Logs", shortcut: "L", action: () => setActiveTab("logs") },
+                { label: "Switch to Incident Kanban Board", shortcut: "B", action: () => setActiveTab("board") },
+                { label: "Scroll to top", shortcut: "Home", action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
+                { label: "Log out", shortcut: "Ctrl+Q", action: handleLogout }
+              ].filter(c => c.label.toLowerCase().includes(commandQuery.toLowerCase())).map((cmd, i) => (
+                <div 
+                  key={i}
+                  onClick={() => { cmd.action(); setShowCommandMenu(false); setCommandQuery(""); }}
+                  className="flex justify-between items-center px-2 py-1.5 rounded hover:bg-primary/10 text-xs text-ink cursor-pointer hover:text-primary transition-colors"
+                >
+                  <span>{cmd.label}</span>
+                  <kbd className="text-[9px] bg-surface-3 border border-hairline text-ink-tertiary px-1 rounded font-mono uppercase">{cmd.shortcut}</kbd>
+                </div>
+              ))}
+
+              {/* Dynamic Endpoint Search Results */}
+              {endpoints.length > 0 && (
+                <>
+                  <div className="text-[10px] text-ink-tertiary px-2 py-1 uppercase font-semibold mt-2">Endpoints</div>
+                  {endpoints.filter(e => e.slug.toLowerCase().includes(commandQuery.toLowerCase()) || e.source_name.toLowerCase().includes(commandQuery.toLowerCase())).map((ep) => (
+                    <div 
+                      key={ep.id}
+                      onClick={() => { setSelectedEndpoint(ep); setShowCommandMenu(false); setCommandQuery(""); }}
+                      className="flex justify-between items-center px-2 py-1.5 rounded hover:bg-primary/10 text-xs text-ink cursor-pointer hover:text-primary transition-colors"
+                    >
+                      <span className="truncate">{ep.source_name}</span>
+                      <span className="text-[10px] font-mono text-ink-tertiary">/p/{ep.slug}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
