@@ -58,6 +58,17 @@ async def update_incident(
         
     await db.commit()
     await db.refresh(incident)
+
+    # Broadcast update event
+    try:
+        from backend.app.websockets import manager
+        await manager.broadcast({
+            "event": "incident_updated",
+            "data": IncidentResponse.model_validate(incident).model_dump()
+        })
+    except Exception as ws_err:
+        print(f"[WS PATCH ERROR] Failed to broadcast: {ws_err}")
+
     return incident
 
 @router.get("/incidents/{incident_id}/comments", response_model=List[IncidentCommentResponse])
@@ -115,4 +126,15 @@ async def create_incident_comment(
     db.add(new_comment)
     await db.commit()
     await db.refresh(new_comment)
+
+    # Broadcast comment event
+    try:
+        from backend.app.websockets import manager
+        await manager.broadcast({
+            "event": "comment_created",
+            "data": IncidentCommentResponse.model_validate(new_comment).model_dump()
+        })
+    except Exception as ws_err:
+        print(f"[WS POST COMMENT ERROR] Failed to broadcast: {ws_err}")
+
     return new_comment
