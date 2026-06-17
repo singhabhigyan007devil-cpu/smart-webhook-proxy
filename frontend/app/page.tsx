@@ -17,7 +17,8 @@ import {
   Copy, 
   Check, 
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  Keyboard
 } from "lucide-react";
 
 const API_BASE = "http://localhost:8000";
@@ -117,6 +118,7 @@ export default function Dashboard() {
   const [commenterName, setCommenterName] = useState("");
   const [assigneeInput, setAssigneeInput] = useState("");
   const [draggedOverCol, setDraggedOverCol] = useState<"todo" | "in_progress" | "done" | null>(null);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<"logs" | "board">("logs");
@@ -314,33 +316,74 @@ export default function Dashboard() {
     }
   };
 
-  // Keyboard Shortcuts Effect
+  // Keyboard Shortcuts Refs to avoid stale closures
+  const showCommandMenuRef = React.useRef(showCommandMenu);
+  const showShortcutsModalRef = React.useRef(showShortcutsModal);
+  const selectedIncidentRef = React.useRef(selectedIncident);
+
+  useEffect(() => {
+    showCommandMenuRef.current = showCommandMenu;
+  }, [showCommandMenu]);
+
+  useEffect(() => {
+    showShortcutsModalRef.current = showShortcutsModal;
+  }, [showShortcutsModal]);
+
+  useEffect(() => {
+    selectedIncidentRef.current = selectedIncident;
+  }, [selectedIncident]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      const isInputActive = activeTag === "input" || activeTag === "textarea";
+
+      // 1. Ctrl+K -> Command Menu
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "k" || e.code === "KeyK")) {
         e.preventDefault();
         setShowCommandMenu(prev => !prev);
       }
       
-      if (e.key === "Escape") {
-        setShowCommandMenu(false);
+      // 2. ? -> Shortcuts Modal
+      if (!isInputActive && (e.key === "?" || (e.key === "/" && e.shiftKey) || (e.code === "Slash" && e.shiftKey))) {
+        e.preventDefault();
+        setShowShortcutsModal(prev => !prev);
+      }
+
+      // 3. c -> Focus comment input (only if details drawer is open)
+      if (!isInputActive && (e.key.toLowerCase() === "c" || e.code === "KeyC") && selectedIncidentRef.current) {
+        e.preventDefault();
+        setTimeout(() => {
+          const commentInput = document.getElementById("comment-body-input");
+          if (commentInput) {
+            commentInput.focus();
+          }
+        }, 0);
       }
       
-      if (!showCommandMenu) {
-        const activeTag = document.activeElement?.tagName.toLowerCase();
-        if (activeTag !== "input" && activeTag !== "textarea") {
-          if (e.key.toLowerCase() === "b") {
-            setActiveTab("board");
-          }
-          if (e.key.toLowerCase() === "l") {
-            setActiveTab("logs");
-          }
+      // 4. Escape -> Close all
+      if (e.key === "Escape" || e.code === "Escape") {
+        if (showCommandMenuRef.current || showShortcutsModalRef.current || selectedIncidentRef.current) {
+          e.preventDefault();
+          setShowCommandMenu(false);
+          setShowShortcutsModal(false);
+          setSelectedIncident(null);
+        }
+      }
+      
+      // 5. b/l -> Navigation (only if nothing is open)
+      if (!isInputActive && !showCommandMenuRef.current && !showShortcutsModalRef.current) {
+        if (e.key.toLowerCase() === "b" || e.code === "KeyB") {
+          setActiveTab("board");
+        }
+        if (e.key.toLowerCase() === "l" || e.code === "KeyL") {
+          setActiveTab("logs");
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showCommandMenu]);
+  }, []);
 
 
   // Polling loop
@@ -946,15 +989,24 @@ export default function Dashboard() {
                   <span>Incident Board ({incidents.filter(i => i.status !== "done").length})</span>
                 </button>
               </div>
-
-              {activeTab === "logs" && (
-                <div className="flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                  <span className="text-[10px] uppercase font-semibold text-ink-subtle tracking-wider">
-                    Listening
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center space-x-3">
+                {activeTab === "logs" && (
+                  <div className="flex items-center space-x-2 mr-1">
+                    <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                    <span className="text-[10px] uppercase font-semibold text-ink-subtle tracking-wider">
+                      Listening
+                    </span>
+                  </div>
+                )}
+                <button 
+                  onClick={() => setShowShortcutsModal(true)}
+                  className="flex items-center space-x-1.5 px-2 py-1 rounded bg-surface-2 border border-hairline hover:bg-surface-3 text-[10px] text-ink-subtle hover:text-ink font-medium tracking-tight transition-colors duration-150"
+                  title="Keyboard Shortcuts (?)"
+                >
+                  <Keyboard className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline font-mono uppercase bg-surface-3 px-1 rounded border border-hairline text-[8px] text-ink-tertiary">?</span>
+                </button>
+              </div>
             </div>
 
             {activeTab === "board" ? (
@@ -1349,6 +1401,7 @@ export default function Dashboard() {
                       className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2.5 py-1.5 focus:outline-none w-1/3"
                     />
                     <input 
+                      id="comment-body-input"
                       type="text" 
                       placeholder="Add status notes or debugging comment..." 
                       value={newCommentBody}
@@ -1435,6 +1488,76 @@ export default function Dashboard() {
                   ))}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Keyboard Shortcuts Reference Modal (?) */}
+      {showShortcutsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowShortcutsModal(false)}
+          />
+          
+          {/* Shortcuts Card */}
+          <div className="bg-surface-1 border border-hairline w-full max-w-md rounded-lg shadow-2xl overflow-hidden relative z-10 flex flex-col p-5 space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-hairline">
+              <span className="font-semibold text-sm text-ink flex items-center space-x-2">
+                <span>Keyboard Shortcuts</span>
+              </span>
+              <button 
+                onClick={() => setShowShortcutsModal(false)}
+                className="text-[10px] bg-surface-3 hover:bg-surface-2 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase transition-colors"
+              >
+                esc
+              </button>
+            </div>
+            
+            <div className="space-y-4 text-xs">
+              <div className="space-y-2">
+                <h4 className="text-[10px] text-ink-tertiary uppercase font-semibold tracking-wider">Navigation</h4>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink-subtle">Switch to Event Logs</span>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">L</kbd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink-subtle">Switch to Incident Board</span>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">B</kbd>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="text-[10px] text-ink-tertiary uppercase font-semibold tracking-wider">Interface</h4>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink-subtle">Open Command Menu</span>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">Ctrl + K</kbd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink-subtle">Toggle Shortcuts Help</span>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">?</kbd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink-subtle">Close Modals / Drawer</span>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">esc</kbd>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-[10px] text-ink-tertiary uppercase font-semibold tracking-wider">Incident Details (When open)</h4>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink-subtle">Focus comment input</span>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">C</kbd>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
