@@ -116,6 +116,7 @@ export default function Dashboard() {
   const [newCommentBody, setNewCommentBody] = useState("");
   const [commenterName, setCommenterName] = useState("");
   const [assigneeInput, setAssigneeInput] = useState("");
+  const [draggedOverCol, setDraggedOverCol] = useState<"todo" | "in_progress" | "done" | null>(null);
   
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<"logs" | "board">("logs");
@@ -464,8 +465,38 @@ export default function Dashboard() {
 
   const renderBoardColumn = (colStatus: "todo" | "in_progress" | "done", label: string, badgeStyles: string) => {
     const colIncidents = incidents.filter(i => i.status === colStatus);
+    const isDraggedOver = draggedOverCol === colStatus;
+    
     return (
-      <div className="flex flex-col space-y-3 bg-surface-1/40 border border-hairline rounded p-3 min-h-[400px]">
+      <div 
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (draggedOverCol !== colStatus) {
+            setDraggedOverCol(colStatus);
+          }
+        }}
+        onDragLeave={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX;
+          const y = e.clientY;
+          if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+            setDraggedOverCol(null);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDraggedOverCol(null);
+          const incidentId = e.dataTransfer.getData("text/plain");
+          if (incidentId) {
+            handleUpdateIncident(incidentId, { status: colStatus });
+          }
+        }}
+        className={`flex flex-col space-y-3 p-3 min-h-[400px] rounded border transition-all duration-200 ease-out ${
+          isDraggedOver 
+            ? "bg-primary/5 border-primary/40 ring-1 ring-primary/10 shadow-lg shadow-primary/5 scale-[1.01]" 
+            : "bg-surface-1/40 border-hairline"
+        }`}
+      >
         <div className="flex items-center justify-between pb-2 border-b border-hairline">
           <span className={`text-[10px] uppercase font-semibold px-2.5 py-0.5 rounded-full border ${badgeStyles}`}>
             {label}
@@ -490,7 +521,16 @@ export default function Dashboard() {
                 <div 
                   key={inc.id}
                   onClick={() => setSelectedIncident(inc)}
-                  className={`bg-surface-2 border border-hairline hover:border-hairline-strong rounded p-3 cursor-pointer transition-all duration-150 ${
+                  draggable={true}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", inc.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.currentTarget.classList.add("opacity-40");
+                  }}
+                  onDragEnd={(e) => {
+                    e.currentTarget.classList.remove("opacity-40");
+                  }}
+                  className={`bg-surface-2 border border-hairline hover:border-hairline-strong rounded p-3 cursor-grab active:cursor-grabbing transition-all duration-150 ${
                     selectedIncident?.id === inc.id ? "ring-1 ring-primary border-primary bg-primary/5" : ""
                   }`}
                 >
