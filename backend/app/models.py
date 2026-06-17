@@ -1,0 +1,59 @@
+import uuid
+from sqlalchemy import Column, String, Boolean, Integer, ForeignKey, Text, DateTime, JSON
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from backend.app.db import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    api_key = Column(String(255), unique=True, nullable=False, index=True)
+    tier = Column(String(50), default="free", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    endpoints = relationship("Endpoint", back_populates="user", cascade="all, delete-orphan")
+
+class Endpoint(Base):
+    __tablename__ = "endpoints"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
+    source_name = Column(String(255), nullable=False)
+    secret_token = Column(String(255), nullable=True)
+    active_state = Column(Boolean, default=True, nullable=False)
+    target_url = Column(Text, nullable=False)
+    failure_count = Column(Integer, default=0, nullable=False)
+    alert_webhook_url = Column(String(512), nullable=True)
+    auth_headers = Column(JSON, nullable=True)
+    max_retries = Column(Integer, nullable=True)
+    backoff_base = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="endpoints")
+    logs = relationship("WebhookLog", back_populates="endpoint", cascade="all, delete-orphan")
+
+class WebhookLog(Base):
+    __tablename__ = "webhook_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    endpoint_id = Column(String(36), ForeignKey("endpoints.id", ondelete="CASCADE"), nullable=False, index=True)
+    payload_string = Column(Text, nullable=False)
+    headers_json = Column(JSON, nullable=False)
+    response_code = Column(Integer, nullable=True)
+    delivery_status = Column(String(50), nullable=False)  # pending, success, failed, dropped
+    retry_count = Column(Integer, default=0, nullable=False)
+    error_message = Column(Text, nullable=True)
+    event_hash = Column(String(64), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    endpoint = relationship("Endpoint", back_populates="logs")
+
+class IdempotencyKey(Base):
+    __tablename__ = "idempotency_keys"
+
+    key_hash = Column(String(255), primary_key=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

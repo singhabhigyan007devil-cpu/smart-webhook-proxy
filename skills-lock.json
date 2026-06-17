@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "cloud-run-basics": {
+      "source": "google/skills",
+      "sourceType": "github",
+      "skillPath": "skills/cloud/cloud-run-basics/SKILL.md",
+      "computedHash": "4b20635854193bf5df40f2fdf94e7a379364d4e148987a69991dd2dc9962df5e"
+    },
+    "cloud-sql-basics": {
+      "source": "google/skills",
+      "sourceType": "github",
+      "skillPath": "skills/cloud/cloud-sql-basics/SKILL.md",
+      "computedHash": "804f4de2527637888e6a852f31aa5b1df90819b475983983571d1bfae6c2e6ed"
+    },
+    "fastapi-python": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "fastapi-python/SKILL.md",
+      "computedHash": "4521c6090735152b7b8df670cefe5c1c6d1dcaa115de67bb96e74ebf802d4f24"
+    },
+    "google-cloud-waf-security": {
+      "source": "google/skills",
+      "sourceType": "github",
+      "skillPath": "skills/cloud/google-cloud-waf-security/SKILL.md",
+      "computedHash": "b49e3f41dd7758c3392cde1ff10fbed769d7e089cd8c4a8bf0c914749f1276e3"
+    },
+    "supabase-postgres-best-practices": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
+      "computedHash": "3639bed1f40b3fbadae79fee631c42c89b2d1f5c30b05d5aa3cca06422a6bbbc"
+    }
+  }
+}
