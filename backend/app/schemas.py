@@ -91,3 +91,45 @@ class DashboardMetrics(BaseModel):
     pending_retries: int
     total_processed: int
 
+
+# --- Incident Schemas ---
+class IncidentCommentCreate(BaseModel):
+    commenter: str
+    body: str
+
+class IncidentCommentResponse(BaseModel):
+    id: str
+    incident_id: str
+    commenter: str
+    body: str
+    created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+class IncidentUpdate(BaseModel):
+    status: Optional[str] = None  # todo, in_progress, done
+    priority: Optional[str] = None  # urgent, high, medium, low
+    assignee: Optional[str] = None
+
+class IncidentResponse(BaseModel):
+    id: str
+    endpoint_id: str
+    title: str
+    description: Optional[str] = None
+    status: str
+    priority: str
+    assignee: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    @field_serializer('created_at', 'updated_at')
+    def serialize_timestamps(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+

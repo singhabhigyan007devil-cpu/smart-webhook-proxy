@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from backend.app.config import settings
 from backend.app.db import init_db, engine
-from backend.app.routers import ingest, worker, endpoints
+from backend.app.routers import ingest, worker, endpoints, incidents
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(ingest.router)
 app.include_router(worker.router)
 app.include_router(endpoints.router, prefix="/api")
+app.include_router(incidents.router, prefix="/api")
 
 @app.get("/")
 async def root_redirect():
