@@ -120,6 +120,11 @@ export default function Dashboard() {
   const [draggedOverCol, setDraggedOverCol] = useState<"todo" | "in_progress" | "done" | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   
+  // Board Filters
+  const [boardSearchQuery, setBoardSearchQuery] = useState("");
+  const [boardPriorityFilter, setBoardPriorityFilter] = useState("all");
+  const [boardAssigneeFilter, setBoardAssigneeFilter] = useState("all");
+  
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<"logs" | "board">("logs");
   
@@ -504,6 +509,76 @@ export default function Dashboard() {
       setCopiedKeyId(id);
       setTimeout(() => setCopiedKeyId(null), 2000);
     }
+  };
+
+  const renderBoardFilterBar = () => {
+    const uniqueAssignees = Array.from(new Set(incidents.map(i => i.assignee).filter((a): a is string => !!a)));
+    const hasFiltersActive = boardSearchQuery.trim() !== "" || boardPriorityFilter !== "all" || boardAssigneeFilter !== "all";
+
+    return (
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 border-b border-hairline bg-surface-1/40">
+        <div className="flex flex-1 flex-col md:flex-row md:items-center gap-3">
+          {/* Text Search */}
+          <div className="relative flex-1 max-w-xs">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
+            <input 
+              type="text" 
+              placeholder="Search incidents by title, slug..." 
+              value={boardSearchQuery}
+              onChange={(e) => setBoardSearchQuery(e.target.value)}
+              className="w-full bg-surface-2 text-ink text-xs rounded border border-hairline pl-9 pr-2.5 py-1.5 focus:outline-none focus:border-primary-focus transition-all placeholder:text-ink-tertiary"
+            />
+          </div>
+
+          {/* Priority Filter */}
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Priority:</span>
+            <select 
+              value={boardPriorityFilter}
+              onChange={(e) => setBoardPriorityFilter(e.target.value)}
+              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer"
+            >
+              <option value="all">All Priorities</option>
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="no_priority">No Priority</option>
+            </select>
+          </div>
+
+          {/* Assignee Filter */}
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Assignee:</span>
+            <select 
+              value={boardAssigneeFilter}
+              onChange={(e) => setBoardAssigneeFilter(e.target.value)}
+              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer"
+            >
+              <option value="all">All Assignees</option>
+              <option value="unassigned">Unassigned</option>
+              {uniqueAssignees.map((assignee) => (
+                <option key={assignee} value={assignee}>{assignee}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Clear Filters Button */}
+        {hasFiltersActive && (
+          <button 
+            onClick={() => {
+              setBoardSearchQuery("");
+              setBoardPriorityFilter("all");
+              setBoardAssigneeFilter("all");
+            }}
+            className="text-[10px] hover:text-primary border border-dashed border-hairline hover:border-primary/30 rounded px-2.5 py-1.5 font-medium text-ink-subtle hover:bg-primary/5 transition-all w-fit shrink-0"
+          >
+            Clear Filters
+          </button>
+        )}
+      </div>
+    );
   };
 
   const renderBoardColumn = (colStatus: "todo" | "in_progress" | "done", label: string, badgeStyles: string) => {
@@ -1010,10 +1085,13 @@ export default function Dashboard() {
             </div>
 
             {activeTab === "board" ? (
-              <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-canvas min-h-[450px]">
-                {renderBoardColumn("todo", "Todo", "bg-amber-500/10 border-amber-500/20 text-amber-400")}
-                {renderBoardColumn("in_progress", "In Progress", "bg-blue-500/10 border-blue-500/20 text-blue-400")}
-                {renderBoardColumn("done", "Done", "bg-emerald-500/10 border-emerald-500/20 text-success")}
+              <div className="flex flex-col bg-canvas min-h-[450px]">
+                {renderBoardFilterBar()}
+                <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {renderBoardColumn("todo", "Todo", "bg-amber-500/10 border-amber-500/20 text-amber-400")}
+                  {renderBoardColumn("in_progress", "In Progress", "bg-blue-500/10 border-blue-500/20 text-blue-400")}
+                  {renderBoardColumn("done", "Done", "bg-emerald-500/10 border-emerald-500/20 text-success")}
+                </div>
               </div>
             ) : (
               /* Dense Monospace Table */
