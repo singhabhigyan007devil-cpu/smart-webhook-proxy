@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -44,6 +44,23 @@ app.include_router(ingest.router)
 app.include_router(worker.router)
 app.include_router(endpoints.router, prefix="/api")
 app.include_router(incidents.router, prefix="/api")
+
+# Real-Time WebSocket Endpoint
+from backend.app.websockets import manager
+
+@app.websocket("/ws/dashboard")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"[WS ERROR] Connection exception: {e}")
+        manager.disconnect(websocket)
 
 @app.get("/")
 async def root_redirect():

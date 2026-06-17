@@ -391,6 +391,96 @@ export default function Dashboard() {
   }, []);
 
 
+  // Real-Time WebSockets connection
+  useEffect(() => {
+    if (!apiKey) return;
+
+    const wsUrl = API_BASE.replace(/^http/, "ws") + "/ws/dashboard";
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+
+    const connect = () => {
+      console.log("[WS] Connecting to backend at", wsUrl);
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("[WS] Connected to dashboard live events");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          if (event.data === "pong") return;
+          const message = JSON.parse(event.data);
+          console.log("[WS] Received real-time event:", message.event, message.data);
+          
+          if (message.event === "incident_created") {
+            const newIncident = message.data;
+            setIncidents(prev => {
+              if (prev.some(i => i.id === newIncident.id)) return prev;
+              return [newIncident, ...prev];
+            });
+            fetchData();
+          } 
+          
+          else if (message.event === "incident_updated") {
+            const updated = message.data;
+            setIncidents(prev => prev.map(i => i.id === updated.id ? updated : i));
+            setSelectedIncident(prev => {
+              if (prev?.id === updated.id) {
+                setAssigneeInput(updated.assignee || "");
+                return updated;
+              }
+              return prev;
+            });
+            fetchData();
+          } 
+          
+          else if (message.event === "comment_created") {
+            const newComment = message.data;
+            setSelectedIncident(prevSelected => {
+              if (prevSelected?.id === newComment.incident_id) {
+                setIncidentComments(prevComments => {
+                  if (prevComments.some(c => c.id === newComment.id)) return prevComments;
+                  return [...prevComments, newComment];
+                });
+              }
+              return prevSelected;
+            });
+          }
+        } catch (err) {
+          console.error("[WS ERROR] Error parsing event payload:", err);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("[WS] Disconnected. Reconnecting in 3s...");
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.error("[WS ERROR] Connection error:", err);
+        ws?.close();
+      };
+    };
+
+    connect();
+
+    const pingInterval = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send("ping");
+      }
+    }, 10000);
+
+    return () => {
+      if (pingInterval) clearInterval(pingInterval);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [apiKey, fetchData]);
+
   // Polling loop
   useEffect(() => {
     if (apiKey) {

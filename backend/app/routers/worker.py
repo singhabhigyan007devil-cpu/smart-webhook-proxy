@@ -218,6 +218,18 @@ async def process_webhook_task(
                     )
                     db.add(new_incident)
                     await db.commit()
+                    
+                    # Broadcast creation event
+                    try:
+                        from backend.app.websockets import manager
+                        from backend.app.schemas import IncidentResponse
+                        await manager.broadcast({
+                            "event": "incident_created",
+                            "data": IncidentResponse.model_validate(new_incident).model_dump()
+                        })
+                    except Exception as ws_err:
+                        print(f"[WORKER WS ERROR] Failed to broadcast incident creation: {ws_err}")
+
                     print(f"[WORKER] Created Incident for dropped webhook on slug /p/{endpoint.slug}")
             except Exception as e:
                 print(f"[WORKER ERROR] Failed to create database Incident: {e}")
