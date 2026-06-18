@@ -92,6 +92,32 @@ class DashboardMetrics(BaseModel):
     total_processed: int
 
 
+# --- Project Schemas ---
+class ProjectBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    status: Optional[str] = "started"  # backlog, started, completed, paused
+
+class ProjectCreate(ProjectBase):
+    pass
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+
+class ProjectResponse(ProjectBase):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- Incident Schemas ---
 class IncidentCommentCreate(BaseModel):
     commenter: str
@@ -114,10 +140,12 @@ class IncidentUpdate(BaseModel):
     status: Optional[str] = None  # todo, in_progress, done
     priority: Optional[str] = None  # urgent, high, medium, low
     assignee: Optional[str] = None
+    project_id: Optional[str] = None
 
 class IncidentResponse(BaseModel):
     id: str
     endpoint_id: str
+    project_id: Optional[str] = None
     title: str
     description: Optional[str] = None
     status: str
@@ -131,5 +159,6 @@ class IncidentResponse(BaseModel):
         return serialize_datetime(dt)
 
     model_config = ConfigDict(from_attributes=True)
+
 
 

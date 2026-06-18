@@ -4,7 +4,7 @@ from sqlalchemy.future import select
 from typing import List
 
 from backend.app.db import get_db
-from backend.app.models import User, Endpoint, Incident, IncidentComment
+from backend.app.models import User, Endpoint, Incident, IncidentComment, Project
 from backend.app.routers.endpoints import get_current_user
 from backend.app.schemas import (
     IncidentResponse, IncidentUpdate,
@@ -55,6 +55,18 @@ async def update_incident(
         incident.priority = payload.priority
     if payload.assignee is not None:
         incident.assignee = payload.assignee or None
+        
+    if "project_id" in payload.model_fields_set:
+        if payload.project_id is not None:
+            # check project exists and belongs to current user
+            proj_query = select(Project).where(Project.id == payload.project_id, Project.user_id == current_user.id)
+            proj_res = await db.execute(proj_query)
+            if not proj_res.scalars().first():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Project not found or access denied"
+                )
+        incident.project_id = payload.project_id
         
     await db.commit()
     await db.refresh(incident)

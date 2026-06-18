@@ -18,7 +18,8 @@ import {
   Check, 
   LogOut,
   AlertTriangle,
-  Keyboard
+  Keyboard,
+  Compass
 } from "lucide-react";
 
 const API_BASE = "http://localhost:8000";
@@ -49,6 +50,7 @@ interface Endpoint {
 interface Incident {
   id: string;
   endpoint_id: string;
+  project_id: string | null;
   title: string;
   description: string | null;
   status: "todo" | "in_progress" | "done";
@@ -56,6 +58,15 @@ interface Incident {
   assignee: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  status: "backlog" | "started" | "completed" | "paused";
+  created_at: string;
 }
 
 interface IncidentComment {
@@ -125,8 +136,18 @@ export default function Dashboard() {
   const [boardPriorityFilter, setBoardPriorityFilter] = useState("all");
   const [boardAssigneeFilter, setBoardAssigneeFilter] = useState("all");
   
+  // Projects & Roadmaps States
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
+  const [projectStatusInput, setProjectStatusInput] = useState<"backlog" | "started" | "completed" | "paused">("started");
+  const [projectCreateError, setProjectCreateError] = useState("");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<"logs" | "board">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps">("logs");
   
   // Command Menu Overlay (Ctrl+K)
   const [showCommandMenu, setShowCommandMenu] = useState(false);
@@ -242,6 +263,13 @@ export default function Dashboard() {
       if (incRes.ok) {
         const data = await incRes.json();
         setIncidents(data);
+      }
+
+      // 5. Fetch Projects
+      const projRes = await fetch(`${API_BASE}/api/projects`, { headers });
+      if (projRes.ok) {
+        const data = await projRes.json();
+        setProjects(data);
       }
     } catch (err) {
       console.error("Error polling backend dashboard data", err);
@@ -376,13 +404,16 @@ export default function Dashboard() {
         }
       }
       
-      // 5. b/l -> Navigation (only if nothing is open)
+      // 5. b/l/r -> Navigation (only if nothing is open)
       if (!isInputActive && !showCommandMenuRef.current && !showShortcutsModalRef.current) {
         if (e.key.toLowerCase() === "b" || e.code === "KeyB") {
           setActiveTab("board");
         }
         if (e.key.toLowerCase() === "l" || e.code === "KeyL") {
           setActiveTab("logs");
+        }
+        if (e.key.toLowerCase() === "r" || e.code === "KeyR") {
+          setActiveTab("roadmaps");
         }
       }
     };
@@ -435,6 +466,27 @@ export default function Dashboard() {
             fetchData();
           } 
           
+          else if (message.event === "project_created") {
+            const newProj = message.data;
+            setProjects(prev => {
+              if (prev.some(p => p.id === newProj.id)) return prev;
+              return [newProj, ...prev];
+            });
+            fetchData();
+          } 
+          
+          else if (message.event === "project_updated") {
+            const updated = message.data;
+            setProjects(prev => prev.map(p => p.id === updated.id ? updated : p));
+            fetchData();
+          } 
+          
+          else if (message.event === "project_deleted") {
+            const { id } = message.data;
+            setProjects(prev => prev.filter(p => p.id !== id));
+            setIncidents(prev => prev.map(i => i.project_id === id ? { ...i, project_id: null } : i));
+            fetchData();
+          }          
           else if (message.event === "comment_created") {
             const newComment = message.data;
             setSelectedIncident(prevSelected => {
@@ -586,6 +638,78 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Failed to delete endpoint", err);
+    }
+  };
+
+  // --- Project CRUD Handlers ---
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projectName.trim()) return;
+    setIsCreatingProject(true);
+    setProjectCreateError("");
+    try {
+      const response = await fetch(`${API_BASE}/api/projects`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          name: projectName.trim(),
+          description: projectDescription.trim() || undefined,
+          status: projectStatusInput
+        })
+      });
+      if (response.ok) {
+        setProjectName("");
+        setProjectDescription("");
+        setProjectStatusInput("started");
+        setShowCreateProjectModal(false);
+        fetchData();
+      } else {
+        const err = await response.json();
+        setProjectCreateError(err.detail || "Failed to create project.");
+      }
+    } catch (err) {
+      setProjectCreateError("Error communicating with database.");
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
+
+  const handleUpdateProject = async (id: string, updates: Partial<Project>) => {
+    if (!apiKey) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/projects/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(updates)
+      });
+      if (response.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to update project", err);
+    }
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this project? Incident mapping will be cleared.")) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/projects/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`
+        }
+      });
+      if (response.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to delete project", err);
     }
   };
 
@@ -1153,6 +1277,15 @@ export default function Dashboard() {
                   <Layers className="w-4 h-4" />
                   <span>Incident Board ({incidents.filter(i => i.status !== "done").length})</span>
                 </button>
+                <button 
+                  onClick={() => setActiveTab("roadmaps")}
+                  className={`text-sm font-semibold tracking-tight transition-colors duration-150 flex items-center space-x-2 pb-0.5 ${
+                    activeTab === "roadmaps" ? "text-ink border-b-2 border-primary" : "text-ink-subtle hover:text-ink"
+                  }`}
+                >
+                  <Compass className="w-4 h-4" />
+                  <span>Roadmaps ({projects.length})</span>
+                </button>
               </div>
               <div className="flex items-center space-x-3">
                 {activeTab === "logs" && (
@@ -1174,7 +1307,90 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {activeTab === "board" ? (
+            {activeTab === "roadmaps" ? (
+              <div className="flex flex-col bg-canvas min-h-[450px] p-6 space-y-6">
+                <div className="flex justify-between items-center pb-2 border-b border-hairline">
+                  <div>
+                    <h3 className="text-sm font-semibold text-ink">Product Roadmaps & Initiatives</h3>
+                    <p className="text-xs text-ink-subtle mt-0.5">Organize failed webhooks into structured development efforts.</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowCreateProjectModal(true)}
+                    className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-primary hover:bg-primary-hover text-ink text-xs font-semibold border border-primary-focus/50 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>New Project</span>
+                  </button>
+                </div>
+
+                {projects.length === 0 ? (
+                  <div className="text-center py-12 text-ink-tertiary text-xs italic">
+                    No roadmap initiatives created yet. Click "New Project" to begin tracking.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {projects.map((proj) => {
+                      const projIncidents = incidents.filter(i => i.project_id === proj.id);
+                      const completedCount = projIncidents.filter(i => i.status === "done").length;
+                      const totalCount = projIncidents.length;
+                      const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+                      let statusBadge = "border-hairline text-ink-subtle bg-surface-2";
+                      if (proj.status === "backlog") statusBadge = "border-slate-500/30 text-slate-400 bg-slate-950/20";
+                      if (proj.status === "started") statusBadge = "border-blue-500/30 text-blue-400 bg-blue-950/20";
+                      if (proj.status === "completed") statusBadge = "border-emerald-500/30 text-emerald-400 bg-emerald-950/20";
+                      if (proj.status === "paused") statusBadge = "border-amber-500/30 text-amber-400 bg-amber-950/20";
+
+                      return (
+                        <div key={proj.id} className="bg-surface-1 border border-hairline rounded-lg p-5 flex flex-col space-y-4 hover:border-hairline-strong transition-all duration-150 relative">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-semibold text-ink">{proj.name}</h4>
+                              <p className="text-xs text-ink-subtle font-sans line-clamp-2 leading-relaxed pr-2">
+                                {proj.description || "No description provided."}
+                              </p>
+                            </div>
+                            <select 
+                              value={proj.status}
+                              onChange={(e) => handleUpdateProject(proj.id, { status: e.target.value as any })}
+                              className={`text-[9px] uppercase font-semibold px-2 py-0.5 rounded-full border cursor-pointer focus:outline-none ${statusBadge}`}
+                            >
+                              <option value="backlog">Backlog</option>
+                              <option value="started">Started</option>
+                              <option value="paused">Paused</option>
+                              <option value="completed">Completed</option>
+                            </select>
+                          </div>
+
+                          {/* Progress Indicator */}
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-[10px]">
+                              <span className="text-ink-subtle font-medium">{progressPct}% completed</span>
+                              <span className="text-ink-tertiary font-mono">{completedCount}/{totalCount} resolved</span>
+                            </div>
+                            <div className="w-full bg-surface-3 rounded-full h-1.5 overflow-hidden border border-hairline relative">
+                              <div 
+                                className="bg-gradient-to-r from-primary/80 to-primary h-full transition-all duration-500 ease-out" 
+                                style={{ width: `${progressPct}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button 
+                              onClick={() => handleDeleteProject(proj.id)}
+                              className="text-[10px] text-red-400 hover:text-red-300 font-medium hover:bg-red-500/5 px-2 py-1 rounded border border-transparent hover:border-red-950/30 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : activeTab === "board" ? (
               <div className="flex flex-col bg-canvas min-h-[450px]">
                 {renderBoardFilterBar()}
                 <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1528,6 +1744,20 @@ export default function Dashboard() {
                     />
                   </div>
                 </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-subtle">Project Initiative:</span>
+                  <select 
+                    value={selectedIncident.project_id || ""}
+                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { project_id: e.target.value || null })}
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-48 focus:outline-none focus:border-primary cursor-pointer"
+                  >
+                    <option value="">No Project Initiative</option>
+                    {projects.map((proj) => (
+                      <option key={proj.id} value={proj.id}>{proj.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Title & Description */}
@@ -1627,6 +1857,7 @@ export default function Dashboard() {
               {[
                 { label: "Switch to Live Event Logs", shortcut: "L", action: () => setActiveTab("logs") },
                 { label: "Switch to Incident Kanban Board", shortcut: "B", action: () => setActiveTab("board") },
+                { label: "Switch to Roadmap Initiatives", shortcut: "R", action: () => setActiveTab("roadmaps") },
                 { label: "Scroll to top", shortcut: "Home", action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
                 { label: "Log out", shortcut: "Ctrl+Q", action: handleLogout }
               ].filter(c => c.label.toLowerCase().includes(commandQuery.toLowerCase())).map((cmd, i) => (
@@ -1639,6 +1870,23 @@ export default function Dashboard() {
                   <kbd className="text-[9px] bg-surface-3 border border-hairline text-ink-tertiary px-1 rounded font-mono uppercase">{cmd.shortcut}</kbd>
                 </div>
               ))}
+
+              {/* Dynamic Project Search Results */}
+              {projects.length > 0 && (
+                <>
+                  <div className="text-[10px] text-ink-tertiary px-2 py-1 uppercase font-semibold mt-2">Projects</div>
+                  {projects.filter(p => p.name.toLowerCase().includes(commandQuery.toLowerCase()) || (p.description && p.description.toLowerCase().includes(commandQuery.toLowerCase()))).map((proj) => (
+                    <div 
+                      key={proj.id}
+                      onClick={() => { setActiveTab("roadmaps"); setShowCommandMenu(false); setCommandQuery(""); }}
+                      className="flex justify-between items-center px-2 py-1.5 rounded hover:bg-primary/10 text-xs text-ink cursor-pointer hover:text-primary transition-colors"
+                    >
+                      <span className="truncate">{proj.name}</span>
+                      <span className="text-[10px] uppercase font-mono text-ink-tertiary">{proj.status}</span>
+                    </div>
+                  ))}
+                </>
+              )}
 
               {/* Dynamic Endpoint Search Results */}
               {endpoints.length > 0 && (
@@ -1696,6 +1944,10 @@ export default function Dashboard() {
                     <span className="text-ink-subtle">Switch to Incident Board</span>
                     <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">B</kbd>
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-ink-subtle">Switch to Roadmaps</span>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">R</kbd>
+                  </div>
                 </div>
               </div>
               
@@ -1727,6 +1979,89 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Create Project Modal */}
+      {showCreateProjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowCreateProjectModal(false)}
+          />
+          
+          {/* Modal Card */}
+          <div className="bg-surface-1 border border-hairline w-full max-w-md rounded-lg shadow-2xl overflow-hidden relative z-10 flex flex-col p-6 space-y-4 font-sans">
+            <div className="flex justify-between items-center pb-2 border-b border-hairline">
+              <span className="font-semibold text-sm text-ink">Create New Roadmap Initiative</span>
+              <button 
+                onClick={() => setShowCreateProjectModal(false)}
+                className="text-ink-subtle hover:text-ink transition-colors duration-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateProject} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                  Project Name
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Auth Consolidation, Stripe SDK Upgrade" 
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                  Description
+                </label>
+                <textarea 
+                  placeholder="Summarize the core milestones and objective..." 
+                  value={projectDescription}
+                  onChange={(e) => setProjectDescription(e.target.value)}
+                  rows={3}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                  Status
+                </label>
+                <select 
+                  value={projectStatusInput}
+                  onChange={(e) => setProjectStatusInput(e.target.value as any)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                >
+                  <option value="backlog">Backlog</option>
+                  <option value="started">Started</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+
+              {projectCreateError && (
+                <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded">
+                  {projectCreateError}
+                </p>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={isCreatingProject}
+                className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-xs py-2 px-4 border border-primary-focus/50 transition-colors duration-150"
+              >
+                {isCreatingProject ? "Creating..." : "Create Project"}
+              </button>
+            </form>
           </div>
         </div>
       )}
