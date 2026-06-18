@@ -98,10 +98,27 @@ create policy idempotency_all_policy on public.idempotency_keys
     for all using (true);
 
 
--- 5. Incidents Table
+-- 5. Projects Table
+create table if not exists public.projects (
+    id uuid default gen_random_uuid() primary key,
+    user_id uuid references public.users(id) on delete cascade not null,
+    name text not null,
+    description text,
+    status text default 'started' not null check (status in ('backlog', 'started', 'completed', 'paused')),
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS on projects
+alter table public.projects enable row level security;
+
+-- Indexing for projects
+create index if not exists projects_user_idx on public.projects(user_id);
+
+-- 6. Incidents Table
 create table if not exists public.incidents (
     id uuid default gen_random_uuid() primary key,
     endpoint_id uuid references public.endpoints(id) on delete cascade not null,
+    project_id uuid references public.projects(id) on delete set null,
     title text not null,
     description text,
     status text default 'todo' not null check (status in ('todo', 'in_progress', 'done')),
@@ -117,8 +134,9 @@ alter table public.incidents enable row level security;
 -- Indexing for performance
 create index if not exists incidents_endpoint_idx on public.incidents(endpoint_id);
 create index if not exists incidents_status_idx on public.incidents(status);
+create index if not exists incidents_project_idx on public.incidents(project_id);
 
--- 6. Incident Comments Table
+-- 7. Incident Comments Table
 create table if not exists public.incident_comments (
     id uuid default gen_random_uuid() primary key,
     incident_id uuid references public.incidents(id) on delete cascade not null,
@@ -135,8 +153,11 @@ create index if not exists incident_comments_incident_idx on public.incident_com
 
 
 -- ==========================================
--- ROW LEVEL SECURITY (RLS) POLICIES FOR INCIDENTS
+-- ROW LEVEL SECURITY (RLS) POLICIES FOR INCIDENTS / PROJECTS
 -- ==========================================
+
+create policy projects_all_policy on public.projects
+    for all using ((select auth.uid()) = user_id);
 
 create policy incidents_all_policy on public.incidents
     for all using (
@@ -156,4 +177,5 @@ create policy incident_comments_all_policy on public.incident_comments
               and public.endpoints.user_id = (select auth.uid())
         )
     );
+
 

@@ -58,11 +58,24 @@ class IdempotencyKey(Base):
     key_hash = Column(String(255), primary_key=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(50), default="started", nullable=False, index=True)  # backlog, started, completed, paused
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    incidents = relationship("Incident", back_populates="project")
+
 class Incident(Base):
     __tablename__ = "incidents"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     endpoint_id = Column(String(36), ForeignKey("endpoints.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     status = Column(String(50), default="todo", nullable=False, index=True)  # todo, in_progress, done
@@ -72,6 +85,7 @@ class Incident(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     endpoint = relationship("Endpoint")
+    project = relationship("Project", back_populates="incidents")
     comments = relationship("IncidentComment", back_populates="incident", cascade="all, delete-orphan")
 
 class IncidentComment(Base):
