@@ -66,6 +66,17 @@ interface Project {
   name: string;
   description: string | null;
   status: "backlog" | "started" | "completed" | "paused";
+  target_date: string | null;
+  created_at: string;
+}
+
+interface ProjectMilestone {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  status: "open" | "completed";
+  target_date: string;
   created_at: string;
 }
 
@@ -143,8 +154,22 @@ export default function Dashboard() {
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [projectStatusInput, setProjectStatusInput] = useState<"backlog" | "started" | "completed" | "paused">("started");
+  const [projectTargetDate, setProjectTargetDate] = useState("");
   const [projectCreateError, setProjectCreateError] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+
+  // Milestones States
+  const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
+  const [showCreateMilestoneModal, setShowCreateMilestoneModal] = useState(false);
+  const [milestoneName, setMilestoneName] = useState("");
+  const [milestoneDescription, setMilestoneDescription] = useState("");
+  const [milestoneTargetDate, setMilestoneTargetDate] = useState("");
+  const [milestoneProjectID, setMilestoneProjectID] = useState("");
+  const [isCreatingMilestone, setIsCreatingMilestone] = useState(false);
+  const [milestoneCreateError, setMilestoneCreateError] = useState("");
+
+  // Roadmap/Timeline View State
+  const [roadmapViewMode, setRoadmapViewMode] = useState<"list" | "timeline">("list");
   
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps">("logs");
@@ -270,6 +295,14 @@ export default function Dashboard() {
       if (projRes.ok) {
         const data = await projRes.json();
         setProjects(data);
+        // Fetch Milestones for each project
+        const milestonePromises = data.map((proj: Project) =>
+          fetch(`${API_BASE}/api/projects/${proj.id}/milestones`, { headers })
+            .then(res => res.ok ? res.json() : [])
+        );
+        const milestonesResults = await Promise.all(milestonePromises);
+        const allMilestones = milestonesResults.flat();
+        setMilestones(allMilestones);
       }
     } catch (err) {
       console.error("Error polling backend dashboard data", err);
@@ -487,6 +520,24 @@ export default function Dashboard() {
             setIncidents(prev => prev.map(i => i.project_id === id ? { ...i, project_id: null } : i));
             fetchData();
           }          
+          else if (message.event === "milestone_created") {
+            const newMilestone = message.data;
+            setMilestones(prev => {
+              if (prev.some(m => m.id === newMilestone.id)) return prev;
+              return [...prev, newMilestone];
+            });
+            fetchData();
+          }
+          else if (message.event === "milestone_updated") {
+            const updated = message.data;
+            setMilestones(prev => prev.map(m => m.id === updated.id ? updated : m));
+            fetchData();
+          }
+          else if (message.event === "milestone_deleted") {
+            const { id } = message.data;
+            setMilestones(prev => prev.filter(m => m.id !== id));
+            fetchData();
+          }
           else if (message.event === "comment_created") {
             const newComment = message.data;
             setSelectedIncident(prevSelected => {
@@ -657,13 +708,15 @@ export default function Dashboard() {
         body: JSON.stringify({
           name: projectName.trim(),
           description: projectDescription.trim() || undefined,
-          status: projectStatusInput
+          status: projectStatusInput,
+          target_date: projectTargetDate ? new Date(projectTargetDate).toISOString() : undefined
         })
       });
       if (response.ok) {
         setProjectName("");
         setProjectDescription("");
         setProjectStatusInput("started");
+        setProjectTargetDate("");
         setShowCreateProjectModal(false);
         fetchData();
       } else {
@@ -711,6 +764,348 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Failed to delete project", err);
     }
+  };
+
+  // --- Project Milestone CRUD Handlers ---
+  const handleCreateMilestone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!milestoneName.trim() || !milestoneProjectID || !milestoneTargetDate) return;
+    setIsCreatingMilestone(true);
+    setMilestoneCreateError("");
+    try {
+      const response = await fetch(`${API_BASE}/api/projects/${milestoneProjectID}/milestones`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          name: milestoneName.trim(),
+          description: milestoneDescription.trim() || undefined,
+          target_date: new Date(milestoneTargetDate).toISOString()
+        })
+      });
+      if (response.ok) {
+        setMilestoneName("");
+        setMilestoneDescription("");
+        setMilestoneTargetDate("");
+        setShowCreateMilestoneModal(false);
+        fetchData();
+      } else {
+        const err = await response.json();
+        setMilestoneCreateError(err.detail || "Failed to create milestone.");
+      }
+    } catch (err) {
+      setMilestoneCreateError("Error communicating with database.");
+    } finally {
+      setIsCreatingMilestone(false);
+    }
+  };
+
+  const handleUpdateMilestone = async (id: string, updates: Partial<ProjectMilestone>) => {
+    if (!apiKey) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/milestones/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(updates)
+      });
+      if (response.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to update milestone", err);
+    }
+  };
+
+  const handleDeleteMilestone = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this milestone?")) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/milestones/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`
+        }
+      });
+      if (response.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to delete milestone", err);
+    }
+  };
+
+  const renderTimelineView = () => {
+    // Helper to generate days for current + next month
+    const start = new Date();
+    start.setDate(1); // 1st of current month
+    start.setHours(0,0,0,0);
+    
+    const end = new Date();
+    end.setMonth(end.getMonth() + 2); // 2 months total
+    end.setDate(0); // Last day of next month
+    end.setHours(23,59,59,999);
+    
+    const days: Date[] = [];
+    let curr = new Date(start);
+    while (curr <= end) {
+      days.push(new Date(curr));
+      curr.setDate(curr.getDate() + 1);
+    }
+    const totalTimelineDays = days.length;
+
+    const monthSegments: { label: string; daysCount: number }[] = [];
+    days.forEach((day) => {
+      const label = day.toLocaleDateString([], { month: "long", year: "numeric" });
+      if (monthSegments.length === 0 || monthSegments[monthSegments.length - 1].label !== label) {
+        monthSegments.push({ label, daysCount: 1 });
+      } else {
+        monthSegments[monthSegments.length - 1].daysCount++;
+      }
+    });
+
+    return (
+      <div className="flex flex-col space-y-4 bg-canvas p-4 min-h-[500px]">
+        {/* Gantt Timeline Container with horizontal scroll */}
+        <div className="border border-hairline rounded bg-surface-1/40 overflow-x-auto relative flex flex-col">
+          
+          {/* Header Row: Month / Day headers */}
+          <div className="flex" style={{ minWidth: `${240 + totalTimelineDays * 24}px` }}>
+            {/* Sticky Top-Left Empty Space */}
+            <div className="w-60 bg-surface-2 border-r border-b border-hairline sticky left-0 z-20 shrink-0 h-16 flex items-center px-4">
+              <span className="text-[10px] uppercase font-semibold text-ink-muted tracking-wider">Project Initiatives</span>
+            </div>
+            
+            {/* Scrolling Calendar Headers */}
+            <div className="flex-1 flex flex-col">
+              {/* Month Header */}
+              <div className="flex border-b border-hairline h-8 bg-surface-2">
+                {monthSegments.map((seg, i) => (
+                  <div 
+                    key={i} 
+                    style={{ width: seg.daysCount * 24 }}
+                    className="text-center py-1.5 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle border-r border-hairline last:border-r-0 h-full shrink-0 flex items-center justify-center"
+                  >
+                    {seg.label}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Day Header */}
+              <div className="flex h-8 bg-surface-1">
+                {days.map((day, i) => {
+                  const isToday = day.toDateString() === new Date().toDateString();
+                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                  return (
+                    <div 
+                      key={i} 
+                      style={{ width: 24 }}
+                      className={`text-center py-1 text-[8px] font-mono shrink-0 h-full flex items-center justify-center border-r border-hairline/20 ${
+                        isToday ? "bg-primary/20 text-primary font-bold animate-pulse" : isWeekend ? "bg-surface-2/60 text-ink-tertiary" : "text-ink-muted"
+                      }`}
+                    >
+                      {day.getDate()}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Rows: One per Project */}
+          <div className="flex flex-col divide-y divide-hairline">
+            {projects.map((proj) => {
+              const projIncidents = incidents.filter(i => i.project_id === proj.id);
+              const completedCount = projIncidents.filter(i => i.status === "done").length;
+              const totalCount = projIncidents.length;
+              const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+              
+              // Calculate Project Bar Bounds
+              const pStart = new Date(proj.created_at);
+              const pEnd = proj.target_date ? new Date(proj.target_date) : null;
+              
+              // Determine start/end indexes
+              const startDayIdx = Math.max(0, Math.floor((pStart.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+              
+              // If target_date is not set, default to start day + 30 days for visualization
+              const endDayIdx = pEnd 
+                ? Math.min(totalTimelineDays - 1, Math.floor((pEnd.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
+                : Math.min(totalTimelineDays - 1, startDayIdx + 30);
+                
+              const leftPx = startDayIdx * 24;
+              const widthPx = Math.max(24, (endDayIdx - startDayIdx + 1) * 24);
+              const hasTargetDate = !!proj.target_date;
+
+              const projMilestones = milestones.filter(m => m.project_id === proj.id);
+
+              return (
+                <div 
+                  key={proj.id} 
+                  className="flex hover:bg-surface-2/10 transition-colors" 
+                  style={{ minWidth: `${240 + totalTimelineDays * 24}px` }}
+                >
+                  {/* Sticky left panel */}
+                  <div className="w-60 bg-surface-1 border-r border-hairline sticky left-0 z-10 shrink-0 p-3 flex flex-col justify-between space-y-2">
+                    <div>
+                      <h4 className="text-xs font-semibold text-ink line-clamp-1">{proj.name}</h4>
+                      <p className="text-[9px] text-ink-muted mt-0.5">
+                        {hasTargetDate ? `Target: ${new Date(proj.target_date!).toLocaleDateString()}` : "No target date set"}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1">
+                        <span className="text-[9px] text-ink-subtle font-medium">{progressPct}%</span>
+                        <div className="w-12 bg-surface-3 rounded-full h-1 overflow-hidden border border-hairline">
+                          <div className="bg-primary h-full" style={{ width: `${progressPct}%` }} />
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={() => {
+                          setMilestoneProjectID(proj.id);
+                          setShowCreateMilestoneModal(true);
+                        }}
+                        className="text-[8px] bg-primary/10 hover:bg-primary text-primary hover:text-ink font-semibold px-1.5 py-0.5 rounded border border-primary/20 hover:border-transparent transition-all"
+                      >
+                        + Milestone
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right Timeline Grid Row */}
+                  <div className="flex-1 relative h-16 flex items-center">
+                    
+                    {/* Background Grid Columns for this row */}
+                    <div className="absolute inset-0 flex pointer-events-none">
+                      {days.map((day, idx) => {
+                        const isToday = day.toDateString() === new Date().toDateString();
+                        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                        return (
+                          <div 
+                            key={idx}
+                            style={{ width: 24 }}
+                            className={`h-full border-r border-hairline/20 shrink-0 ${
+                              isToday ? "bg-primary/5 border-r border-primary/15" : isWeekend ? "bg-surface-2/20" : ""
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    {/* Timeline Track Bar */}
+                    <div 
+                      style={{ left: leftPx, width: widthPx }}
+                      className={`absolute h-7 rounded flex items-center px-2 text-[9px] font-medium transition-all ${
+                        hasTargetDate 
+                          ? "bg-primary/15 border border-primary/30 hover:bg-primary/20 text-primary shadow-sm" 
+                          : "bg-surface-3/30 border border-dashed border-hairline hover:bg-surface-3/40 text-ink-subtle"
+                      }`}
+                    >
+                      <span className="truncate">{proj.name} ({progressPct}%)</span>
+                    </div>
+
+                    {/* Milestones Flag Markers */}
+                    {projMilestones.map((m) => {
+                      const mDate = new Date(m.target_date);
+                      const mIdx = Math.floor((mDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                      if (mIdx < 0 || mIdx >= totalTimelineDays) return null;
+                      const mLeft = mIdx * 24 + 5; 
+                      const isCompleted = m.status === "completed";
+
+                      return (
+                        <div 
+                          key={m.id}
+                          style={{ left: mLeft }}
+                          className="absolute z-10 group flex flex-col items-center cursor-pointer"
+                        >
+                          {/* Vertical guide line */}
+                          <div className={`w-[1px] h-14 border-l border-dashed -mt-4 ${
+                            isCompleted ? "border-emerald-500/40" : "border-amber-500/40"
+                          }`} />
+                          
+                          {/* Flag Diamond/Marker */}
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Mark milestone "${m.name}" as ${isCompleted ? "open" : "completed"}?`)) {
+                                handleUpdateMilestone(m.id, { status: isCompleted ? "open" : "completed" });
+                              }
+                            }}
+                            className={`w-3.5 h-3.5 -mt-10 rotate-45 border flex items-center justify-center shadow-md transition-all ${
+                              isCompleted 
+                                ? "bg-emerald-500 border-emerald-600 text-white hover:bg-emerald-400" 
+                                : "bg-amber-500 border-amber-600 text-white hover:bg-amber-400"
+                            }`}
+                            title={`${m.name} (${m.status}) - Click to toggle status`}
+                          >
+                            <span className="-rotate-45 text-[7px] font-bold">M</span>
+                          </div>
+
+                          {/* Hover Tooltip */}
+                          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-surface-1 border border-hairline shadow-xl rounded p-2 z-50 text-[10px] w-40 text-ink font-sans space-y-1">
+                            <div className="font-semibold truncate text-primary">{m.name}</div>
+                            {m.description && <div className="text-ink-subtle text-[9px] line-clamp-2 leading-relaxed">{m.description}</div>}
+                            <div className="flex justify-between items-center pt-1 border-t border-hairline text-[8px] text-ink-tertiary">
+                              <span>{new Date(m.target_date).toLocaleDateString()}</span>
+                              <span className={`uppercase font-bold ${isCompleted ? "text-emerald-500" : "text-amber-500"}`}>{m.status}</span>
+                            </div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMilestone(m.id);
+                              }}
+                              className="text-red-400 hover:text-red-300 font-semibold text-[8px] text-left pt-1 block hover:underline"
+                            >
+                              Delete Milestone
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Mapped Incident Webhook Failures */}
+                    {projIncidents.map((inc) => {
+                      const incDate = new Date(inc.created_at);
+                      const incIdx = Math.floor((incDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                      if (incIdx < 0 || incIdx >= totalTimelineDays) return null;
+                      const incLeft = incIdx * 24 + 7; 
+
+                      return (
+                        <div 
+                          key={inc.id}
+                          style={{ left: incLeft }}
+                          onClick={() => setSelectedIncident(inc)}
+                          className="absolute z-10 group cursor-pointer"
+                        >
+                          <div className="w-2.5 h-2.5 rounded-full bg-red-500 border border-red-600 animate-pulse shadow-sm hover:scale-125 transition-transform" />
+                          
+                          {/* Incident Hover Tooltip */}
+                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-surface-1 border border-hairline shadow-xl rounded p-2 z-50 text-[10px] w-44 text-ink font-sans space-y-1">
+                            <div className="font-semibold text-red-400 truncate">Webhook Failure</div>
+                            <div className="text-ink line-clamp-2 leading-tight">{inc.title}</div>
+                            <div className="flex justify-between items-center pt-1 border-t border-hairline text-[8px] text-ink-tertiary font-mono">
+                              <span>Priority: {inc.priority}</span>
+                              <span>{inc.status}</span>
+                            </div>
+                            <div className="text-[8px] text-ink-tertiary italic">{new Date(inc.created_at).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+        </div>
+      </div>
+    );
   };
 
   // --- Copy Handlers ---
@@ -1309,24 +1704,66 @@ export default function Dashboard() {
 
             {activeTab === "roadmaps" ? (
               <div className="flex flex-col bg-canvas min-h-[450px] p-6 space-y-6">
-                <div className="flex justify-between items-center pb-2 border-b border-hairline">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-hairline">
                   <div>
                     <h3 className="text-sm font-semibold text-ink">Product Roadmaps & Initiatives</h3>
-                    <p className="text-xs text-ink-subtle mt-0.5">Organize failed webhooks into structured development efforts.</p>
+                    <p className="text-xs text-ink-subtle mt-0.5 font-sans">Organize failed webhooks into structured development efforts.</p>
                   </div>
-                  <button 
-                    onClick={() => setShowCreateProjectModal(true)}
-                    className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-primary hover:bg-primary-hover text-ink text-xs font-semibold border border-primary-focus/50 transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>New Project</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* View Toggle */}
+                    <div className="flex bg-surface-2 border border-hairline rounded p-0.5 select-none w-fit">
+                      <button 
+                        onClick={() => setRoadmapViewMode("list")}
+                        className={`px-3 py-1 text-xs rounded font-medium transition-all ${
+                          roadmapViewMode === "list" 
+                            ? "bg-surface-1 border border-hairline shadow-sm text-ink font-semibold" 
+                            : "text-ink-subtle hover:text-ink border border-transparent"
+                        }`}
+                      >
+                        List View
+                      </button>
+                      <button 
+                        onClick={() => setRoadmapViewMode("timeline")}
+                        className={`px-3 py-1 text-xs rounded font-medium transition-all ${
+                          roadmapViewMode === "timeline" 
+                            ? "bg-surface-1 border border-hairline shadow-sm text-ink font-semibold" 
+                            : "text-ink-subtle hover:text-ink border border-transparent"
+                        }`}
+                      >
+                        Timeline View
+                      </button>
+                    </div>
+                    
+                    {/* Global Buttons */}
+                    {projects.length > 0 && (
+                      <button 
+                        onClick={() => {
+                          setMilestoneProjectID(projects[0].id);
+                          setShowCreateMilestoneModal(true);
+                        }}
+                        className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-surface-2 border border-hairline hover:bg-surface-3 text-ink text-xs font-semibold transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Milestone</span>
+                      </button>
+                    )}
+                    
+                    <button 
+                      onClick={() => setShowCreateProjectModal(true)}
+                      className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-primary hover:bg-primary-hover text-ink text-xs font-semibold border border-primary-focus/50 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>New Project</span>
+                    </button>
+                  </div>
                 </div>
 
                 {projects.length === 0 ? (
                   <div className="text-center py-12 text-ink-tertiary text-xs italic">
                     No roadmap initiatives created yet. Click "New Project" to begin tracking.
                   </div>
+                ) : roadmapViewMode === "timeline" ? (
+                  renderTimelineView()
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {projects.map((proj) => {
@@ -1341,6 +1778,8 @@ export default function Dashboard() {
                       if (proj.status === "completed") statusBadge = "border-emerald-500/30 text-emerald-400 bg-emerald-950/20";
                       if (proj.status === "paused") statusBadge = "border-amber-500/30 text-amber-400 bg-amber-950/20";
 
+                      const projMilestones = milestones.filter(m => m.project_id === proj.id);
+
                       return (
                         <div key={proj.id} className="bg-surface-1 border border-hairline rounded-lg p-5 flex flex-col space-y-4 hover:border-hairline-strong transition-all duration-150 relative">
                           <div className="flex justify-between items-start">
@@ -1349,6 +1788,11 @@ export default function Dashboard() {
                               <p className="text-xs text-ink-subtle font-sans line-clamp-2 leading-relaxed pr-2">
                                 {proj.description || "No description provided."}
                               </p>
+                              {proj.target_date && (
+                                <p className="text-[10px] text-ink-muted">
+                                  Target Completion: {new Date(proj.target_date).toLocaleDateString()}
+                                </p>
+                              )}
                             </div>
                             <select 
                               value={proj.status}
@@ -1361,6 +1805,21 @@ export default function Dashboard() {
                               <option value="completed">Completed</option>
                             </select>
                           </div>
+
+                          {/* Milestones list in project card */}
+                          {projMilestones.length > 0 && (
+                            <div className="space-y-1 pt-2 border-t border-hairline">
+                              <span className="text-[9px] text-ink-muted uppercase font-bold tracking-wider">Milestones:</span>
+                              <div className="flex flex-col space-y-1">
+                                {projMilestones.map(m => (
+                                  <div key={m.id} className="flex justify-between items-center text-[10px] bg-surface-2 p-1.5 rounded border border-hairline">
+                                    <span className={`font-medium ${m.status === "completed" ? "line-through text-ink-tertiary" : "text-ink"}`}>{m.name}</span>
+                                    <span className="text-ink-tertiary font-mono text-[9px]">{new Date(m.target_date).toLocaleDateString()}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Progress Indicator */}
                           <div className="space-y-1.5">
@@ -1376,7 +1835,16 @@ export default function Dashboard() {
                             </div>
                           </div>
 
-                          <div className="flex justify-end pt-1">
+                          <div className="flex justify-between items-center pt-1">
+                            <button 
+                              onClick={() => {
+                                setMilestoneProjectID(proj.id);
+                                setShowCreateMilestoneModal(true);
+                              }}
+                              className="text-[10px] text-primary hover:underline font-semibold"
+                            >
+                              + Add Milestone
+                            </button>
                             <button 
                               onClick={() => handleDeleteProject(proj.id)}
                               className="text-[10px] text-red-400 hover:text-red-300 font-medium hover:bg-red-500/5 px-2 py-1 rounded border border-transparent hover:border-red-950/30 transition-colors"
@@ -2034,6 +2502,18 @@ export default function Dashboard() {
 
               <div>
                 <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                  Target Completion Date (Optional)
+                </label>
+                <input 
+                  type="date" 
+                  value={projectTargetDate}
+                  onChange={(e) => setProjectTargetDate(e.target.value)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
                   Status
                 </label>
                 <select 
@@ -2060,6 +2540,103 @@ export default function Dashboard() {
                 className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-xs py-2 px-4 border border-primary-focus/50 transition-colors duration-150"
               >
                 {isCreatingProject ? "Creating..." : "Create Project"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Create Milestone Modal */}
+      {showCreateMilestoneModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowCreateMilestoneModal(false)}
+          />
+          
+          {/* Modal Card */}
+          <div className="bg-surface-1 border border-hairline w-full max-w-md rounded-lg shadow-2xl overflow-hidden relative z-10 flex flex-col p-6 space-y-4 font-sans">
+            <div className="flex justify-between items-center pb-2 border-b border-hairline">
+              <span className="font-semibold text-sm text-ink">Create New Milestone</span>
+              <button 
+                onClick={() => setShowCreateMilestoneModal(false)}
+                className="text-ink-subtle hover:text-ink transition-colors duration-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateMilestone} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                  Project Initiative
+                </label>
+                <select 
+                  value={milestoneProjectID}
+                  onChange={(e) => setMilestoneProjectID(e.target.value)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  required
+                >
+                  <option value="">Select Project Initiative...</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                  Milestone Name
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Beta Launch, SDK Core Stable" 
+                  value={milestoneName}
+                  onChange={(e) => setMilestoneName(e.target.value)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                  Description
+                </label>
+                <textarea 
+                  placeholder="Summarize what this milestone represents..." 
+                  value={milestoneDescription}
+                  onChange={(e) => setMilestoneDescription(e.target.value)}
+                  rows={2}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                  Target Date
+                </label>
+                <input 
+                  type="date" 
+                  value={milestoneTargetDate}
+                  onChange={(e) => setMilestoneTargetDate(e.target.value)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  required
+                />
+              </div>
+
+              {milestoneCreateError && (
+                <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded">
+                  {milestoneCreateError}
+                </p>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={isCreatingMilestone}
+                className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-xs py-2 px-4 border border-primary-focus/50 transition-colors duration-150"
+              >
+                {isCreatingMilestone ? "Creating..." : "Create Milestone"}
               </button>
             </form>
           </div>

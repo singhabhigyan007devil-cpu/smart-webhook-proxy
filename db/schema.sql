@@ -105,6 +105,7 @@ create table if not exists public.projects (
     name text not null,
     description text,
     status text default 'started' not null check (status in ('backlog', 'started', 'completed', 'paused')),
+    target_date timestamp with time zone,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -113,6 +114,23 @@ alter table public.projects enable row level security;
 
 -- Indexing for projects
 create index if not exists projects_user_idx on public.projects(user_id);
+
+-- 5b. Project Milestones Table
+create table if not exists public.project_milestones (
+    id uuid default gen_random_uuid() primary key,
+    project_id uuid references public.projects(id) on delete cascade not null,
+    name text not null,
+    description text,
+    status text default 'open' not null check (status in ('open', 'completed')),
+    target_date timestamp with time zone not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS on project_milestones
+alter table public.project_milestones enable row level security;
+
+-- Indexing for project_milestones
+create index if not exists project_milestones_project_idx on public.project_milestones(project_id);
 
 -- 6. Incidents Table
 create table if not exists public.incidents (
@@ -159,6 +177,15 @@ create index if not exists incident_comments_incident_idx on public.incident_com
 create policy projects_all_policy on public.projects
     for all using ((select auth.uid()) = user_id);
 
+create policy project_milestones_all_policy on public.project_milestones
+    for all using (
+        exists (
+            select 1 from public.projects
+            where public.projects.id = project_milestones.project_id
+              and public.projects.user_id = (select auth.uid())
+        )
+    );
+
 create policy incidents_all_policy on public.incidents
     for all using (
         exists (
@@ -177,5 +204,6 @@ create policy incident_comments_all_policy on public.incident_comments
               and public.endpoints.user_id = (select auth.uid())
         )
     );
+
 
 

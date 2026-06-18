@@ -97,6 +97,7 @@ class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
     status: Optional[str] = "started"  # backlog, started, completed, paused
+    target_date: Optional[datetime] = None
 
 class ProjectCreate(ProjectBase):
     pass
@@ -105,14 +106,47 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+    target_date: Optional[datetime] = None
 
 class ProjectResponse(ProjectBase):
     id: str
     user_id: str
     created_at: datetime
 
-    @field_serializer('created_at')
-    def serialize_created_at(self, dt: datetime, _info):
+    @field_serializer('created_at', 'target_date')
+    def serialize_timestamps(self, dt: Optional[datetime], _info):
+        if dt is None:
+            return None
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Project Milestone Schemas ---
+class ProjectMilestoneBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    status: Optional[str] = "open"  # open, completed
+    target_date: datetime
+
+class ProjectMilestoneCreate(ProjectMilestoneBase):
+    pass
+
+class ProjectMilestoneUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    target_date: Optional[datetime] = None
+
+class ProjectMilestoneResponse(ProjectMilestoneBase):
+    id: str
+    project_id: str
+    created_at: datetime
+
+    @field_serializer('created_at', 'target_date')
+    def serialize_timestamps(self, dt: Optional[datetime], _info):
+        if dt is None:
+            return None
         return serialize_datetime(dt)
 
     model_config = ConfigDict(from_attributes=True)
