@@ -66,9 +66,24 @@ class Project(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     status = Column(String(50), default="started", nullable=False, index=True)  # backlog, started, completed, paused
+    target_date = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     incidents = relationship("Incident", back_populates="project")
+    milestones = relationship("ProjectMilestone", back_populates="project", cascade="all, delete-orphan")
+
+class ProjectMilestone(Base):
+    __tablename__ = "project_milestones"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(50), default="open", nullable=False, index=True)  # open, completed
+    target_date = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    project = relationship("Project", back_populates="milestones")
 
 class Incident(Base):
     __tablename__ = "incidents"
