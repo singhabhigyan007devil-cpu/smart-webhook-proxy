@@ -14,6 +14,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     endpoints = relationship("Endpoint", back_populates="user", cascade="all, delete-orphan")
+    alert_channels = relationship("AlertChannel", back_populates="user", cascade="all, delete-orphan")
 
 class Endpoint(Base):
     __tablename__ = "endpoints"
@@ -113,4 +114,17 @@ class IncidentComment(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     incident = relationship("Incident", back_populates="comments")
+
+class AlertChannel(Base):
+    __tablename__ = "alert_channels"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    channel_type = Column(String(50), nullable=False, index=True)  # slack, email, discord
+    config = Column(JSON, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="alert_channels")
 

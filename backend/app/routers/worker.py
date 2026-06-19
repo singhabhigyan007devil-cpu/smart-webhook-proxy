@@ -39,6 +39,50 @@ async def send_alert_webhook(endpoint: Endpoint, error_msg: str, tripped: bool =
         print(f"[ALERT ERROR] Failed to dispatch webhook alert to {endpoint.alert_webhook_url}: {e}")
 
 
+async def dispatch_channels_alerts(endpoint, error_message: str, tripped: bool, db: AsyncSession):
+    from backend.app.models import AlertChannel
+    from sqlalchemy.future import select
+    import httpx
+
+    try:
+        query = select(AlertChannel).where(
+            AlertChannel.user_id == endpoint.user_id,
+            AlertChannel.is_active == True
+        )
+        result = await db.execute(query)
+        channels = result.scalars().all()
+        
+        if not channels:
+            return
+
+        alert_title = "🚨 *HookShield Alert Notification*" if not tripped else "⚠️ *HookShield Circuit Breaker Tripped*"
+        msg = f"{alert_title}\n*Endpoint:* `/p/{endpoint.slug}`\n*Target URL:* {endpoint.target_url}\n*Reason:* {error_message or 'Max retries exhausted'}"
+
+        async with httpx.AsyncClient() as client:
+            for channel in channels:
+                try:
+                    if channel.channel_type == "slack":
+                        webhook_url = channel.config.get("webhook_url")
+                        if webhook_url:
+                            await client.post(webhook_url, json={"text": msg}, timeout=5.0)
+                            print(f"[ALERT] Dispatched Slack alert to channel '{channel.name}'")
+                    elif channel.channel_type == "discord":
+                        webhook_url = channel.config.get("webhook_url")
+                        if webhook_url:
+                            discord_msg = msg.replace("*", "**")
+                            await client.post(webhook_url, json={"content": discord_msg}, timeout=5.0)
+                            print(f"[ALERT] Dispatched Discord alert to channel '{channel.name}'")
+                    elif channel.channel_type == "email":
+                        recipient_email = channel.config.get("recipient_email")
+                        if recipient_email:
+                            print(f"[ALERT EMAIL] Sending to {recipient_email} - Body: {msg}")
+                except Exception as e:
+                    print(f"[ALERT ERROR] Failed to dispatch to channel '{channel.name}': {e}")
+    except Exception as outer_err:
+        print(f"[ALERT CHANNEL OUTER ERROR] {outer_err}")
+
+
+
 class WorkerPayload(BaseModel):
     endpoint_id: str
     payload_string: str
@@ -237,6 +281,10 @@ async def process_webhook_task(
             # Trigger Slack/Discord Alert Webhook if configured
             if endpoint.alert_webhook_url:
                 await send_alert_webhook(endpoint, log.error_message, tripped=tripped)
+
+            # Trigger centralized Alert Channels
+            await dispatch_channels_alerts(endpoint, log.error_message, tripped=tripped, db=db)
+
 
 
     return Response(content="Task processed", status_code=status.HTTP_200_OK)

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from backend.app.config import settings
 from backend.app.db import init_db, engine
-from backend.app.routers import ingest, worker, endpoints, incidents, projects
+from backend.app.routers import ingest, worker, endpoints, incidents, projects, alert_channels
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,6 +45,8 @@ app.include_router(worker.router)
 app.include_router(endpoints.router, prefix="/api")
 app.include_router(incidents.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
+app.include_router(alert_channels.router, prefix="/api")
+
 
 # Real-Time WebSocket Endpoint
 from backend.app.websockets import manager

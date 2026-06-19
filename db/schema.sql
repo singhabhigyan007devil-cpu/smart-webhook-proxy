@@ -206,4 +206,27 @@ create policy incident_comments_all_policy on public.incident_comments
     );
 
 
+-- 8. Alert Channels Table
+create table if not exists public.alert_channels (
+    id uuid default gen_random_uuid() primary key,
+    user_id uuid references public.users(id) on delete cascade not null,
+    name text not null,
+    channel_type text not null check (channel_type in ('slack', 'email', 'discord')),
+    config jsonb not null,
+    is_active boolean default true not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS
+alter table public.alert_channels enable row level security;
+
+-- Index
+create index if not exists alert_channels_user_idx on public.alert_channels(user_id);
+
+-- RLS Policy
+create policy alert_channels_all_policy on public.alert_channels
+    for all using ((select auth.uid()) = user_id);
+
+
+
 

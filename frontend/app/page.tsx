@@ -19,7 +19,8 @@ import {
   LogOut,
   AlertTriangle,
   Keyboard,
-  Compass
+  Compass,
+  Bell
 } from "lucide-react";
 
 const API_BASE = "http://localhost:8000";
@@ -87,6 +88,20 @@ interface IncidentComment {
   body: string;
   created_at: string;
 }
+
+interface AlertChannel {
+  id: string;
+  user_id: string;
+  name: string;
+  channel_type: "slack" | "discord" | "email";
+  config: {
+    webhook_url?: string;
+    recipient_email?: string;
+  };
+  is_active: boolean;
+  created_at: string;
+}
+
 
 
 interface WebhookLog {
@@ -172,7 +187,20 @@ export default function Dashboard() {
   const [roadmapViewMode, setRoadmapViewMode] = useState<"list" | "timeline">("list");
   
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts">("logs");
+
+  // Alert Channels States
+  const [alertChannels, setAlertChannels] = useState<AlertChannel[]>([]);
+  const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
+  const [newChannelName, setNewChannelName] = useState("");
+  const [newChannelType, setNewChannelType] = useState<"slack" | "discord" | "email">("slack");
+  const [newChannelWebhookUrl, setNewChannelWebhookUrl] = useState("");
+  const [newChannelEmail, setNewChannelEmail] = useState("");
+  const [isTestingChannelId, setIsTestingChannelId] = useState<string | null>(null);
+  const [isSavingChannel, setIsSavingChannel] = useState(false);
+  const [channelCreateError, setChannelCreateError] = useState("");
+  const [confirmDeleteChannelId, setConfirmDeleteChannelId] = useState<string | null>(null);
+
   
   // Command Menu Overlay (Ctrl+K)
   const [showCommandMenu, setShowCommandMenu] = useState(false);
@@ -250,6 +278,7 @@ export default function Dashboard() {
     setEndpoints([]);
     setLogs([]);
     setIncidents([]);
+    setAlertChannels([]);
     setSelectedEndpoint(null);
     setSelectedLog(null);
     setSelectedIncident(null);
@@ -303,6 +332,13 @@ export default function Dashboard() {
         const milestonesResults = await Promise.all(milestonePromises);
         const allMilestones = milestonesResults.flat();
         setMilestones(allMilestones);
+      }
+
+      // 6. Fetch Alert Channels
+      const channelsRes = await fetch(`${API_BASE}/api/alert-channels`, { headers });
+      if (channelsRes.ok) {
+        const data = await channelsRes.json();
+        setAlertChannels(data);
       }
     } catch (err) {
       console.error("Error polling backend dashboard data", err);
@@ -538,6 +574,24 @@ export default function Dashboard() {
             setMilestones(prev => prev.filter(m => m.id !== id));
             fetchData();
           }
+          else if (message.event === "alert_channel_created") {
+            const newChannel = message.data;
+            setAlertChannels(prev => {
+              if (prev.some(c => c.id === newChannel.id)) return prev;
+              return [newChannel, ...prev];
+            });
+            fetchData();
+          }
+          else if (message.event === "alert_channel_updated") {
+            const updated = message.data;
+            setAlertChannels(prev => prev.map(c => c.id === updated.id ? updated : c));
+            fetchData();
+          }
+          else if (message.event === "alert_channel_deleted") {
+            const { id } = message.data;
+            setAlertChannels(prev => prev.filter(c => c.id !== id));
+            fetchData();
+          }
           else if (message.event === "comment_created") {
             const newComment = message.data;
             setSelectedIncident(prevSelected => {
@@ -592,6 +646,109 @@ export default function Dashboard() {
       return () => clearInterval(interval);
     }
   }, [apiKey, fetchData]);
+
+  // --- Alert Channels CRUD Handlers ---
+  const handleCreateAlertChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChannelName.trim()) return;
+    setIsSavingChannel(true);
+    setChannelCreateError("");
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      };
+      const config: Record<string, string> = {};
+      if (newChannelType === "slack" || newChannelType === "discord") {
+        config["webhook_url"] = newChannelWebhookUrl.trim();
+      } else if (newChannelType === "email") {
+        config["recipient_email"] = newChannelEmail.trim();
+      }
+
+      const response = await fetch(`${API_BASE}/api/alert-channels`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: newChannelName.trim(),
+          channel_type: newChannelType,
+          config,
+          is_active: true
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAlertChannels(prev => [data, ...prev]);
+        setShowCreateChannelModal(false);
+        setNewChannelName("");
+        setNewChannelWebhookUrl("");
+        setNewChannelEmail("");
+      } else {
+        const errData = await response.json();
+        setChannelCreateError(errData.detail || "Failed to create alert channel.");
+      }
+    } catch (err) {
+      setChannelCreateError("Connection error while creating alert channel.");
+    } finally {
+      setIsSavingChannel(false);
+    }
+  };
+
+  const handleToggleAlertChannel = async (channelId: string, currentStatus: boolean) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      };
+      const response = await fetch(`${API_BASE}/api/alert-channels/${channelId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ is_active: !currentStatus })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAlertChannels(prev => prev.map(c => c.id === channelId ? data : c));
+      }
+    } catch (err) {
+      console.error("Failed to toggle alert channel", err);
+    }
+  };
+
+  const handleDeleteAlertChannel = async (channelId: string) => {
+    try {
+      const headers = { "Authorization": `Bearer ${apiKey}` };
+      const response = await fetch(`${API_BASE}/api/alert-channels/${channelId}`, {
+        method: "DELETE",
+        headers
+      });
+      if (response.ok) {
+        setAlertChannels(prev => prev.filter(c => c.id !== channelId));
+      }
+    } catch (err) {
+      console.error("Failed to delete alert channel", err);
+    }
+  };
+
+  const handleTestAlertChannel = async (channelId: string) => {
+    setIsTestingChannelId(channelId);
+    try {
+      const headers = { "Authorization": `Bearer ${apiKey}` };
+      const response = await fetch(`${API_BASE}/api/alert-channels/${channelId}/test`, {
+        method: "POST",
+        headers
+      });
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.message || "Test alert sent successfully!");
+      } else {
+        alert(data.detail || "Failed to send test alert.");
+      }
+    } catch (err) {
+      alert("Error sending test alert connection.");
+    } finally {
+      setIsTestingChannelId(null);
+    }
+  };
 
   // --- Endpoint CRUD Handlers ---
   const handleCreateEndpoint = async (e: React.FormEvent) => {
@@ -1190,6 +1347,239 @@ export default function Dashboard() {
     );
   };
 
+  const renderAlertChannelsTab = () => {
+    return (
+      <div className="flex flex-col bg-canvas min-h-[450px] p-6 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-hairline">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Alert Notification Channels</h3>
+            <p className="text-xs text-ink-subtle mt-0.5 font-sans">
+              Route webhook proxy failures and circuit breaker triggers to messaging destinations.
+            </p>
+          </div>
+          <button 
+            onClick={() => {
+              setChannelCreateError("");
+              setShowCreateChannelModal(true);
+            }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-ink font-semibold border border-primary-focus/50 transition-colors shadow-sm select-none"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Channel</span>
+          </button>
+        </div>
+
+        {alertChannels.length === 0 ? (
+          <div className="bg-surface-1 border border-hairline rounded-lg p-12 text-center text-ink-subtle space-y-3">
+            <Bell className="w-8 h-8 mx-auto text-ink-tertiary" />
+            <div className="text-sm font-medium text-ink">No Alert Channels configured</div>
+            <p className="text-xs text-ink-tertiary max-w-md mx-auto">
+              Configure Slack, Discord webhooks, or email recipients to receive immediate telemetry alerts when webhooks fail.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {alertChannels.map((channel) => {
+              const isActive = channel.is_active;
+              return (
+                <div 
+                  key={channel.id}
+                  className="bg-surface-1 border border-hairline rounded-lg p-4 flex flex-col justify-between space-y-4 hover:border-hairline-strong transition-colors"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-semibold text-ink">{channel.name}</span>
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded border uppercase font-medium ${
+                          channel.channel_type === "slack" 
+                            ? "bg-purple-950/20 border-purple-500/30 text-purple-400" 
+                            : channel.channel_type === "discord"
+                            ? "bg-indigo-950/20 border-indigo-500/30 text-indigo-400"
+                            : "bg-emerald-950/20 border-emerald-500/30 text-emerald-400"
+                        }`}>
+                          {channel.channel_type}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-ink-tertiary truncate max-w-[280px]">
+                        {channel.channel_type === "email" 
+                          ? channel.config.recipient_email 
+                          : channel.config.webhook_url ? `${channel.config.webhook_url.slice(0, 35)}...` : "Configured"
+                        }
+                      </p>
+                    </div>
+
+                    {/* Active State Toggle Switch */}
+                    <button 
+                      onClick={() => handleToggleAlertChannel(channel.id, channel.is_active)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        isActive ? "bg-primary" : "bg-surface-3"
+                      }`}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        isActive ? "translate-x-4" : "translate-x-0"
+                      }`} />
+                    </button>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-3 border-t border-hairline">
+                    <span className="text-[10px] text-ink-tertiary font-mono">
+                      Added {new Date(channel.created_at).toLocaleDateString()}
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <button 
+                        onClick={() => handleTestAlertChannel(channel.id)}
+                        disabled={isTestingChannelId !== null}
+                        className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 hover:border-hairline-strong text-ink-subtle hover:text-ink px-2.5 py-1 rounded font-medium transition-colors"
+                      >
+                        {isTestingChannelId === channel.id ? "Testing..." : "Test Alert"}
+                      </button>
+                      {confirmDeleteChannelId === channel.id ? (
+                        <div className="flex items-center space-x-1.5 animate-in fade-in duration-200">
+                          <button
+                            onClick={() => {
+                              handleDeleteAlertChannel(channel.id);
+                              setConfirmDeleteChannelId(null);
+                            }}
+                            className="text-[10px] bg-red-950/40 border border-red-900/50 hover:bg-red-900/60 text-red-400 px-2 py-0.5 rounded transition-colors font-medium"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteChannelId(null)}
+                            className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink px-2 py-0.5 rounded transition-colors font-medium"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setConfirmDeleteChannelId(channel.id)}
+                          className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCreateChannelModal = () => {
+    if (!showCreateChannelModal) return null;
+    return (
+      <div className="fixed inset-0 bg-semantic-overlay/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-surface-1 border border-hairline rounded-lg w-full max-w-md p-6 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-sm font-semibold text-ink flex items-center space-x-2">
+              <Bell className="w-4 h-4 text-primary" />
+              <span>Add Alert Channel</span>
+            </h2>
+            <button 
+              onClick={() => setShowCreateChannelModal(false)}
+              className="p-1 hover:bg-surface-2 rounded text-ink-subtle hover:text-ink transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <form onSubmit={handleCreateAlertChannel} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-semibold text-ink-muted uppercase tracking-wider">
+                Display Name
+              </label>
+              <input 
+                type="text" 
+                placeholder="e.g. Operations Slack" 
+                value={newChannelName}
+                onChange={(e) => setNewChannelName(e.target.value)}
+                required
+                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-semibold text-ink-muted uppercase tracking-wider">
+                Destination Type
+              </label>
+              <select 
+                value={newChannelType}
+                onChange={(e) => setNewChannelType(e.target.value as any)}
+                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 cursor-pointer"
+              >
+                <option value="slack">Slack Webhook</option>
+                <option value="discord">Discord Webhook</option>
+                <option value="email">Email Notification</option>
+              </select>
+            </div>
+
+            {(newChannelType === "slack" || newChannelType === "discord") && (
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-semibold text-ink-muted uppercase tracking-wider">
+                  Webhook URL
+                </label>
+                <input 
+                  type="url" 
+                  placeholder={newChannelType === "slack" ? "https://hooks.slack.com/services/..." : "https://discord.com/api/webhooks/..."}
+                  value={newChannelWebhookUrl}
+                  onChange={(e) => setNewChannelWebhookUrl(e.target.value)}
+                  required
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
+                />
+              </div>
+            )}
+
+            {newChannelType === "email" && (
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-semibold text-ink-muted uppercase tracking-wider">
+                  Recipient Email Address
+                </label>
+                <input 
+                  type="email" 
+                  placeholder="e.g. dev-ops@company.com" 
+                  value={newChannelEmail}
+                  onChange={(e) => setNewChannelEmail(e.target.value)}
+                  required
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
+                />
+              </div>
+            )}
+
+            {channelCreateError && (
+              <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2.5 rounded">
+                {channelCreateError}
+              </p>
+            )}
+
+            <div className="flex justify-end items-center space-x-3 pt-4 border-t border-hairline">
+              <button 
+                type="button"
+                onClick={() => setShowCreateChannelModal(false)}
+                className="px-3 py-1.5 rounded bg-surface-2 border border-hairline hover:bg-surface-3 text-xs font-semibold text-ink-subtle hover:text-ink transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit"
+                disabled={isSavingChannel}
+                className="px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs font-semibold text-ink border border-primary-focus/50 transition-colors"
+              >
+                {isSavingChannel ? "Saving..." : "Create Channel"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
   const renderBoardColumn = (colStatus: "todo" | "in_progress" | "done", label: string, badgeStyles: string) => {
     const colIncidents = incidents.filter(i => i.status === colStatus);
     const isDraggedOver = draggedOverCol === colStatus;
@@ -1681,6 +2071,15 @@ export default function Dashboard() {
                   <Compass className="w-4 h-4" />
                   <span>Roadmaps ({projects.length})</span>
                 </button>
+                <button 
+                  onClick={() => setActiveTab("alerts")}
+                  className={`text-sm font-semibold tracking-tight transition-colors duration-150 flex items-center space-x-2 pb-0.5 ${
+                    activeTab === "alerts" ? "text-ink border-b-2 border-primary" : "text-ink-subtle hover:text-ink"
+                  }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>Alerts ({alertChannels.length})</span>
+                </button>
               </div>
               <div className="flex items-center space-x-3">
                 {activeTab === "logs" && (
@@ -1866,6 +2265,10 @@ export default function Dashboard() {
                   {renderBoardColumn("in_progress", "In Progress", "bg-blue-500/10 border-blue-500/20 text-blue-400")}
                   {renderBoardColumn("done", "Done", "bg-emerald-500/10 border-emerald-500/20 text-success")}
                 </div>
+              </div>
+            ) : activeTab === "alerts" ? (
+              <div>
+                {renderAlertChannelsTab()}
               </div>
             ) : (
               /* Dense Monospace Table */
@@ -2642,6 +3045,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {renderCreateChannelModal()}
 
     </div>
   );

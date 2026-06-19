@@ -195,4 +195,33 @@ class IncidentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Alert Channel Schemas ---
+class AlertChannelBase(BaseModel):
+    name: str
+    channel_type: str  # slack, email, discord
+    config: Dict[str, Any]
+    is_active: Optional[bool] = True
+
+class AlertChannelCreate(AlertChannelBase):
+    pass
+
+class AlertChannelUpdate(BaseModel):
+    name: Optional[str] = None
+    channel_type: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
+    is_active: Optional[bool] = None
+
+class AlertChannelResponse(AlertChannelBase):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+
 
