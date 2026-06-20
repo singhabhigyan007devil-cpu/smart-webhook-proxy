@@ -1,4 +1,5 @@
 "use client";
+import { Settings } from "lucide-react";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { 
@@ -245,6 +246,39 @@ export default function Dashboard() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
+
+  // GitHub Integration Settings
+  const [githubPat, setGithubPat] = useState("");
+  const [githubRepo, setGithubRepo] = useState("");
+  
+  const saveGithubSettings = async () => {
+    if (!apiKey) return;
+    try {
+        await fetch(`${API_BASE}/api/github/user-settings`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ github_pat: githubPat })
+        });
+        
+        // For project settings, we need a default project ID. Assuming "proj-1" or similar if we had a project dropdown. 
+        // We'll skip project_id here or mock it for MVP, wait, the API requires project_id.
+        // Let's assume we fetch projects and use the first one, or hardcode for MVP:
+        const projRes = await fetch(`${API_BASE}/api/projects`, { headers: { "Authorization": `Bearer ${apiKey}` }});
+        if (projRes.ok) {
+            const projects = await projRes.json();
+            if (projects.length > 0) {
+                await fetch(`${API_BASE}/api/github/project-settings`, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ project_id: projects[0].id, github_repo: githubRepo })
+                });
+            }
+        }
+        alert("GitHub settings saved!");
+    } catch (e) {
+        console.error(e);
+    }
+  };
 // Analytics States
   const [analyticsKPIs, setAnalyticsKPIs] = useState<AnalyticsKPIs | null>(null);
   const [analyticsTimeSeries, setAnalyticsTimeSeries] = useState<AnalyticsTimeSeriesPoint[]>([]);
@@ -2362,6 +2396,38 @@ const renderCreatePriorityModal = () => {
             </div>
           </div>
         </div>
+        <div className="bg-surface-1 p-6 rounded shadow border border-hairline mb-8">
+          <h3 className="text-lg font-semibold text-ink mb-4">GitHub Integration</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-ink/80 mb-1">GitHub Personal Access Token (PAT)</label>
+              <input 
+                type="password" 
+                value={githubPat} 
+                onChange={e => setGithubPat(e.target.value)} 
+                className="w-full bg-surface-2 border border-hairline rounded px-3 py-2 text-ink" 
+                placeholder="ghp_xxxxxxxxxxxx"
+              />
+              <p className="text-xs text-ink/60 mt-1">Token requires 'repo' scope to create issues.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-ink/80 mb-1">Default Repository</label>
+              <input 
+                type="text" 
+                value={githubRepo} 
+                onChange={e => setGithubRepo(e.target.value)} 
+                className="w-full bg-surface-2 border border-hairline rounded px-3 py-2 text-ink" 
+                placeholder="owner/repo"
+              />
+            </div>
+            <button 
+              onClick={saveGithubSettings} 
+              className="px-4 py-2 bg-primary text-white rounded font-medium hover:bg-primary-focus transition-colors"
+            >
+              Save Integration Settings
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -3026,6 +3092,15 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                   <BarChart2 className="w-4 h-4" />
                   <span>Analytics</span>
                 </button>
+                <button 
+                  onClick={() => setActiveTab("settings")}
+                  className={`text-sm font-semibold tracking-tight transition-colors duration-150 flex items-center space-x-2 pb-0.5 ${
+                    activeTab === "settings" ? "text-ink border-b-2 border-primary" : "text-ink-subtle hover:text-ink"
+                  }`}
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </button>
               </div>
               <div className="flex items-center space-x-3">
                 {activeTab === "logs" && (
@@ -3226,6 +3301,10 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
             ) : activeTab === "analytics" ? (
               <div>
                 {renderAnalyticsTab()}
+              </div>
+            ) : activeTab === "settings" ? (
+              <div>
+                {renderSettingsTab()}
               </div>
             ) : (
               /* Dense Monospace Table */

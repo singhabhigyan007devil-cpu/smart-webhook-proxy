@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from backend.app.config import settings
 from backend.app.db import init_db, engine
 from backend.app.routers import ingest, worker, endpoints, issues, workflows, projects, alert_channels, severity_priorities, analytics
+from backend.app.routers import github
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -75,3 +76,5 @@ async def root_redirect():
 @app.get("/healthz")
 async def health_check():
     return {"status": "healthy", "service": "HookShield"}
+
+app.include_router(github.router, prefix="/api/github", tags=["GitHub"])

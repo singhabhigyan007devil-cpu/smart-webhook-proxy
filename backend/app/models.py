@@ -12,6 +12,7 @@ class User(Base):
     api_key = Column(String(255), unique=True, nullable=False, index=True)
     tier = Column(String(50), default="free", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    github_pat = Column(String(255), nullable=True)
 
     endpoints = relationship("Endpoint", back_populates="user", cascade="all, delete-orphan")
     alert_channels = relationship("AlertChannel", back_populates="user", cascade="all, delete-orphan")
