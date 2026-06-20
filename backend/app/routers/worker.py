@@ -157,7 +157,8 @@ async def process_webhook_task(
         payload_string=payload_str,
         headers_json=headers,
         delivery_status=delivery_status_label,
-        retry_count=retry_count
+        retry_count=retry_count,
+        latency_ms=None # Will be updated after request
     )
     db.add(log)
     await db.flush() # Populate log.id
@@ -204,6 +205,8 @@ async def process_webhook_task(
         log.delivery_status = "success"
         log.response_code = status_code
         log.error_message = None
+        if status_code is not None:
+            log.latency_ms = int(elapsed * 1000)
         await db.commit()
         await register_success(db, endpoint_id)
         
@@ -220,6 +223,8 @@ async def process_webhook_task(
             delay = backoff_base_value * (2 ** retry_count)
             log.delivery_status = "failed"
             log.response_code = status_code
+            if status_code is not None:
+                log.latency_ms = int(elapsed * 1000)
             log.error_message = f"{error_msg} (Scheduling retry {retry_count + 1} in {delay}s)"
             await db.commit()
             
@@ -235,6 +240,8 @@ async def process_webhook_task(
             # Drop the event (max retries reached or circuit breaker tripped)
             log.delivery_status = "dropped"
             log.response_code = status_code
+            if status_code is not None:
+                log.latency_ms = int(elapsed * 1000)
             if tripped:
                 log.error_message = f"Dropped: Circuit breaker tripped. Last error: {error_msg}"
             else:
