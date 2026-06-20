@@ -39,16 +39,23 @@ async def send_alert_webhook(endpoint: Endpoint, error_msg: str, tripped: bool =
         print(f"[ALERT ERROR] Failed to dispatch webhook alert to {endpoint.alert_webhook_url}: {e}")
 
 
-async def dispatch_channels_alerts(endpoint, error_message: str, tripped: bool, db: AsyncSession):
+async def dispatch_channels_alerts(endpoint, error_message: str, tripped: bool, db: AsyncSession, matched_priority = None):
     from backend.app.models import AlertChannel
     from sqlalchemy.future import select
     import httpx
 
     try:
-        query = select(AlertChannel).where(
-            AlertChannel.user_id == endpoint.user_id,
-            AlertChannel.is_active == True
-        )
+        if matched_priority and matched_priority.alert_channel_id:
+            query = select(AlertChannel).where(
+                AlertChannel.id == matched_priority.alert_channel_id,
+                AlertChannel.user_id == endpoint.user_id,
+                AlertChannel.is_active == True
+            )
+        else:
+            query = select(AlertChannel).where(
+                AlertChannel.user_id == endpoint.user_id,
+                AlertChannel.is_active == True
+            )
         result = await db.execute(query)
         channels = result.scalars().all()
         
@@ -242,8 +249,23 @@ async def process_webhook_task(
                 )
                 existing_incident = incident_res.scalars().first()
                 
+                # Fetch user's custom severity priorities
+                from backend.app.models import SeverityPriority
+                pri_query = select(SeverityPriority).where(
+                    SeverityPriority.user_id == endpoint.user_id
+                ).order_by(SeverityPriority.threshold_failures.desc())
+                pri_res = await db.execute(pri_query)
+                custom_priorities = pri_res.scalars().all()
+                
+                matched_priority = None
+                for cp in custom_priorities:
+                    if endpoint.failure_count >= cp.threshold_failures:
+                        matched_priority = cp
+                        break
+                        
+                severity = matched_priority.name if matched_priority else ("urgent" if tripped else "high")
+                
                 if not existing_incident:
-                    severity = "urgent" if tripped else "high"
                     title = f"Delivery failed for slug /p/{endpoint.slug}"
                     description = (
                         f"Webhook delivery has permanently failed.\n\n"
@@ -275,15 +297,33 @@ async def process_webhook_task(
                         print(f"[WORKER WS ERROR] Failed to broadcast incident creation: {ws_err}")
 
                     print(f"[WORKER] Created Incident for dropped webhook on slug /p/{endpoint.slug}")
+                else:
+                    # Escalation check
+                    if existing_incident.priority != severity:
+                        existing_incident.priority = severity
+                        await db.commit()
+                        await db.refresh(existing_incident)
+                        
+                        # Broadcast update event
+                        try:
+                            from backend.app.websockets import manager
+                            from backend.app.schemas import IncidentResponse
+                            await manager.broadcast({
+                                "event": "incident_updated",
+                                "data": IncidentResponse.model_validate(existing_incident).model_dump()
+                            })
+                        except Exception as ws_err:
+                            print(f"[WORKER WS ERROR] Failed to broadcast incident update: {ws_err}")
+                            
             except Exception as e:
-                print(f"[WORKER ERROR] Failed to create database Incident: {e}")
+                print(f"[WORKER ERROR] Failed to create/update database Incident: {e}")
 
             # Trigger Slack/Discord Alert Webhook if configured
             if endpoint.alert_webhook_url:
                 await send_alert_webhook(endpoint, log.error_message, tripped=tripped)
 
-            # Trigger centralized Alert Channels
-            await dispatch_channels_alerts(endpoint, log.error_message, tripped=tripped, db=db)
+            # Trigger centralized Alert Channels (routed to custom alert channel if matched)
+            await dispatch_channels_alerts(endpoint, log.error_message, tripped=tripped, db=db, matched_priority=matched_priority)
 
 
 

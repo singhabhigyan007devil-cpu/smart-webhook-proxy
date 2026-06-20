@@ -55,7 +55,7 @@ interface Incident {
   title: string;
   description: string | null;
   status: "todo" | "in_progress" | "done";
-  priority: "urgent" | "high" | "medium" | "low";
+  priority: string;
   assignee: string | null;
   created_at: string;
   updated_at: string;
@@ -99,6 +99,17 @@ interface AlertChannel {
     recipient_email?: string;
   };
   is_active: boolean;
+  created_at: string;
+}
+
+interface SeverityPriority {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  rank: number;
+  threshold_failures: number;
+  alert_channel_id: string | null;
   created_at: string;
 }
 
@@ -201,6 +212,18 @@ export default function Dashboard() {
   const [channelCreateError, setChannelCreateError] = useState("");
   const [confirmDeleteChannelId, setConfirmDeleteChannelId] = useState<string | null>(null);
 
+  // Severity Priorities States
+  const [severityPriorities, setSeverityPriorities] = useState<SeverityPriority[]>([]);
+  const [showCreatePriorityModal, setShowCreatePriorityModal] = useState(false);
+  const [newPriorityName, setNewPriorityName] = useState("");
+  const [newPriorityColor, setNewPriorityColor] = useState("hsl(0, 85%, 60%)");
+  const [newPriorityRank, setNewPriorityRank] = useState(1);
+  const [newPriorityThreshold, setNewPriorityThreshold] = useState(5);
+  const [newPriorityChannelId, setNewPriorityChannelId] = useState<string>("none");
+  const [isSavingPriority, setIsSavingPriority] = useState(false);
+  const [priorityCreateError, setPriorityCreateError] = useState("");
+  const [confirmDeletePriorityId, setConfirmDeletePriorityId] = useState<string | null>(null);
+
   
   // Command Menu Overlay (Ctrl+K)
   const [showCommandMenu, setShowCommandMenu] = useState(false);
@@ -279,9 +302,43 @@ export default function Dashboard() {
     setLogs([]);
     setIncidents([]);
     setAlertChannels([]);
+    setSeverityPriorities([]);
     setSelectedEndpoint(null);
     setSelectedLog(null);
     setSelectedIncident(null);
+  };
+
+  const getPriorityStyle = (priorityName: string) => {
+    const cp = severityPriorities.find(p => p.name.toLowerCase() === priorityName.toLowerCase());
+    if (cp) {
+      const cleanColor = cp.color.trim();
+      const match = cleanColor.match(/hsl\(([^)]+)\)/);
+      if (match) {
+        const values = match[1];
+        return {
+          style: {
+            borderColor: `hsla(${values}, 0.3)`,
+            color: cleanColor,
+            backgroundColor: `hsla(${values}, 0.15)`
+          },
+          className: "border px-1.5 py-0.5 rounded text-[9px] uppercase font-semibold"
+        };
+      }
+      return {
+        style: {
+          borderColor: cleanColor,
+          color: cleanColor,
+          backgroundColor: cleanColor + "20"
+        },
+        className: "border px-1.5 py-0.5 rounded text-[9px] uppercase font-semibold"
+      };
+    }
+    let badgeClass = "border border-hairline text-ink-subtle bg-surface-2";
+    const p = priorityName.toLowerCase();
+    if (p === "urgent") badgeClass = "border border-red-500/30 text-red-400 bg-red-950/20";
+    else if (p === "high") badgeClass = "border border-orange-500/30 text-orange-400 bg-orange-950/20";
+    else if (p === "medium") badgeClass = "border border-amber-500/30 text-amber-400 bg-amber-950/20";
+    return { className: `${badgeClass} text-[9px] uppercase font-semibold px-1.5 py-0.5 rounded` };
   };
 
   // --- Data Fetching ---
@@ -339,6 +396,13 @@ export default function Dashboard() {
       if (channelsRes.ok) {
         const data = await channelsRes.json();
         setAlertChannels(data);
+      }
+
+      // 7. Fetch Severity Priorities
+      const prioritiesRes = await fetch(`${API_BASE}/api/severity-priorities`, { headers });
+      if (prioritiesRes.ok) {
+        const data = await prioritiesRes.json();
+        setSeverityPriorities(data);
       }
     } catch (err) {
       console.error("Error polling backend dashboard data", err);
@@ -592,6 +656,24 @@ export default function Dashboard() {
             setAlertChannels(prev => prev.filter(c => c.id !== id));
             fetchData();
           }
+          else if (message.event === "severity_priority_created") {
+            const newPri = message.data;
+            setSeverityPriorities(prev => {
+              if (prev.some(p => p.id === newPri.id)) return prev;
+              return [...prev, newPri].sort((a, b) => a.rank - b.rank);
+            });
+            fetchData();
+          }
+          else if (message.event === "severity_priority_updated") {
+            const updated = message.data;
+            setSeverityPriorities(prev => prev.map(p => p.id === updated.id ? updated : p).sort((a, b) => a.rank - b.rank));
+            fetchData();
+          }
+          else if (message.event === "severity_priority_deleted") {
+            const { id } = message.data;
+            setSeverityPriorities(prev => prev.filter(p => p.id !== id));
+            fetchData();
+          }
           else if (message.event === "comment_created") {
             const newComment = message.data;
             setSelectedIncident(prevSelected => {
@@ -747,6 +829,84 @@ export default function Dashboard() {
       alert("Error sending test alert connection.");
     } finally {
       setIsTestingChannelId(null);
+    }
+  };
+
+  // --- Severity Priorities CRUD Handlers ---
+  const handleCreateSeverityPriority = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPriorityName.trim()) return;
+    setIsSavingPriority(true);
+    setPriorityCreateError("");
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      };
+      const response = await fetch(`${API_BASE}/api/severity-priorities`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: newPriorityName.trim(),
+          color: newPriorityColor,
+          rank: Number(newPriorityRank),
+          threshold_failures: Number(newPriorityThreshold),
+          alert_channel_id: newPriorityChannelId === "none" ? null : newPriorityChannelId
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setSeverityPriorities(prev => {
+          if (prev.some(p => p.id === data.id)) return prev;
+          return [...prev, data].sort((a, b) => a.rank - b.rank);
+        });
+        setShowCreatePriorityModal(false);
+        setNewPriorityName("");
+        setNewPriorityColor("hsl(0, 85%, 60%)");
+        setNewPriorityThreshold(5);
+        setNewPriorityChannelId("none");
+      } else {
+        setPriorityCreateError(data.detail || "Failed to create severity priority.");
+      }
+    } catch (err) {
+      setPriorityCreateError("Connection error while creating severity priority.");
+    } finally {
+      setIsSavingPriority(false);
+    }
+  };
+
+  const handleUpdateSeverityPriority = async (priorityId: string, payload: Partial<SeverityPriority>) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      };
+      const response = await fetch(`${API_BASE}/api/severity-priorities/${priorityId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setSeverityPriorities(prev => prev.map(p => p.id === priorityId ? data : p).sort((a, b) => a.rank - b.rank));
+      }
+    } catch (err) {
+      console.error("Failed to update severity priority", err);
+    }
+  };
+
+  const handleDeleteSeverityPriority = async (priorityId: string) => {
+    try {
+      const headers = { "Authorization": `Bearer ${apiKey}` };
+      const response = await fetch(`${API_BASE}/api/severity-priorities/${priorityId}`, {
+        method: "DELETE",
+        headers
+      });
+      if (response.ok) {
+        setSeverityPriorities(prev => prev.filter(p => p.id !== priorityId));
+      }
+    } catch (err) {
+      console.error("Failed to delete severity priority", err);
     }
   };
 
@@ -1302,13 +1462,21 @@ export default function Dashboard() {
             <select 
               value={boardPriorityFilter}
               onChange={(e) => setBoardPriorityFilter(e.target.value)}
-              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer"
+              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer uppercase"
             >
               <option value="all">All Priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+              {severityPriorities.length > 0 ? (
+                severityPriorities.map(p => (
+                  <option key={p.id} value={p.name}>{p.name}</option>
+                ))
+              ) : (
+                <>
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </>
+              )}
               <option value="no_priority">No Priority</option>
             </select>
           </div>
@@ -1466,6 +1634,245 @@ export default function Dashboard() {
             })}
           </div>
         )}
+        {renderSeverityPrioritiesSection()}
+      </div>
+    );
+  };
+
+  // --- Severity Priorities UI Rendering ---
+  const renderSeverityPrioritiesSection = () => {
+    return (
+      <div className="flex flex-col bg-canvas p-6 space-y-6 border-t border-hairline mt-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-hairline">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Severity-Based Auto-Escalation</h3>
+            <p className="text-xs text-ink-subtle mt-0.5 font-sans">
+              Map endpoint drop thresholds to specific severities, custom colors, and routed alert channels.
+            </p>
+          </div>
+          <button 
+            onClick={() => {
+              setPriorityCreateError("");
+              setShowCreatePriorityModal(true);
+            }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-ink font-semibold border border-primary-focus/50 transition-colors shadow-sm select-none"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Severity Level</span>
+          </button>
+        </div>
+
+        {severityPriorities.length === 0 ? (
+          <div className="text-center py-6 text-ink-tertiary text-xs">
+            No severity levels configured.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {severityPriorities.map((pri) => {
+              let dotStyle = { backgroundColor: pri.color };
+              
+              return (
+                <div 
+                  key={pri.id}
+                  className="bg-surface-1 border border-hairline rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-hairline-strong transition-colors"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={dotStyle} />
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-semibold text-ink uppercase tracking-wider">{pri.name}</div>
+                      <div className="text-[10px] text-ink-tertiary">
+                        Rank {pri.rank} • Triggers at {pri.threshold_failures} failed {pri.threshold_failures === 1 ? "attempt" : "attempts"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4">
+                    {/* Inline edit threshold failures */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] text-ink-subtle font-sans">Failures:</span>
+                      <input 
+                        type="number" 
+                        min="1"
+                        value={pri.threshold_failures}
+                        onChange={(e) => handleUpdateSeverityPriority(pri.id, { threshold_failures: parseInt(e.target.value) || 1 })}
+                        className="w-12 bg-surface-2 text-ink text-xs rounded border border-hairline px-1.5 py-1 text-center focus:outline-none focus:border-primary font-mono"
+                      />
+                    </div>
+
+                    {/* Inline edit rank */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] text-ink-subtle font-sans">Rank:</span>
+                      <input 
+                        type="number" 
+                        value={pri.rank}
+                        onChange={(e) => handleUpdateSeverityPriority(pri.id, { rank: parseInt(e.target.value) || 0 })}
+                        className="w-12 bg-surface-2 text-ink text-xs rounded border border-hairline px-1.5 py-1 text-center focus:outline-none focus:border-primary font-mono"
+                      />
+                    </div>
+
+                    {/* Mapped Alert Channel Dropdown */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] text-ink-subtle font-sans">Route To:</span>
+                      <select
+                        value={pri.alert_channel_id || "none"}
+                        onChange={(e) => handleUpdateSeverityPriority(pri.id, { alert_channel_id: e.target.value })}
+                        className="bg-surface-2 text-ink text-[11px] rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary cursor-pointer max-w-[130px]"
+                      >
+                        <option value="none">All Active Channels</option>
+                        {alertChannels.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} ({c.channel_type})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Delete Custom Priority */}
+                    <div>
+                      {confirmDeletePriorityId === pri.id ? (
+                        <div className="flex items-center space-x-1.5 animate-in fade-in duration-200">
+                          <button
+                            onClick={() => {
+                              handleDeleteSeverityPriority(pri.id);
+                              setConfirmDeletePriorityId(null);
+                            }}
+                            className="text-[10px] bg-red-950/40 border border-red-900/50 hover:bg-red-900/60 text-red-400 px-2 py-0.5 rounded transition-colors font-medium"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeletePriorityId(null)}
+                            className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink px-2 py-0.5 rounded transition-colors font-medium"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setConfirmDeletePriorityId(pri.id)}
+                          className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCreatePriorityModal = () => {
+    if (!showCreatePriorityModal) return null;
+    return (
+      <div className="fixed inset-0 bg-semantic-overlay/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-surface-1 border border-hairline rounded-lg w-full max-w-md p-6 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-sm font-semibold text-ink flex items-center space-x-2">
+              <Shield className="w-4 h-4 text-primary" />
+              <span>Add Severity Level</span>
+            </h2>
+            <button 
+              onClick={() => setShowCreatePriorityModal(false)}
+              className="p-1 hover:bg-surface-2 rounded text-ink-subtle hover:text-ink transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <form onSubmit={handleCreateSeverityPriority} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Severity Name</label>
+              <input 
+                type="text" 
+                required
+                value={newPriorityName}
+                onChange={(e) => setNewPriorityName(e.target.value)}
+                placeholder="e.g. Critical P1"
+                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Rank (Priority Order)</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  required
+                  value={newPriorityRank}
+                  onChange={(e) => setNewPriorityRank(parseInt(e.target.value) || 1)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Failure Count Trigger</label>
+                <input 
+                  type="number" 
+                  min="1"
+                  required
+                  value={newPriorityThreshold}
+                  onChange={(e) => setNewPriorityThreshold(parseInt(e.target.value) || 5)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Color Theme (HSL / HEX)</label>
+              <div className="flex items-center space-x-2">
+                <input 
+                  type="text" 
+                  required
+                  value={newPriorityColor}
+                  onChange={(e) => setNewPriorityColor(e.target.value)}
+                  className="flex-1 bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150 font-mono"
+                />
+                {/* Visual Color Preview */}
+                <div 
+                  className="w-8 h-8 rounded border border-hairline flex-shrink-0"
+                  style={{ backgroundColor: newPriorityColor }}
+                />
+              </div>
+              <p className="text-[9px] text-ink-tertiary">
+                Enter an HSL string like <code className="font-mono text-primary bg-surface-2 px-1 py-0.5 rounded">hsl(0, 85%, 60%)</code> for dynamic alpha colors.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Route Notification Channel</label>
+              <select
+                value={newPriorityChannelId}
+                onChange={(e) => setNewPriorityChannelId(e.target.value)}
+                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150 cursor-pointer"
+              >
+                <option value="none">All Active Channels</option>
+                {alertChannels.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.channel_type})</option>
+                ))}
+              </select>
+            </div>
+
+            {priorityCreateError && (
+              <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded">
+                {priorityCreateError}
+              </p>
+            )}
+
+            <button 
+              type="submit" 
+              disabled={isSavingPriority}
+              className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-xs py-2.5 px-4 border border-primary-focus/50 transition-colors duration-150"
+            >
+              {isSavingPriority ? "Creating..." : "Create Severity Level"}
+            </button>
+          </form>
+        </div>
       </div>
     );
   };
@@ -1629,10 +2036,7 @@ export default function Dashboard() {
               const ep = endpoints.find(e => e.id === inc.endpoint_id);
               const slugLabel = ep ? ep.slug : "deleted";
               
-              let priorityBadge = "border-hairline text-ink-subtle bg-surface-2";
-              if (inc.priority === "urgent") priorityBadge = "border-red-500/30 text-red-400 bg-red-950/20";
-              if (inc.priority === "high") priorityBadge = "border-orange-500/30 text-orange-400 bg-orange-950/20";
-              if (inc.priority === "medium") priorityBadge = "border-amber-500/30 text-amber-400 bg-amber-950/20";
+              const priStyle = getPriorityStyle(inc.priority);
               
               return (
                 <div 
@@ -1652,7 +2056,10 @@ export default function Dashboard() {
                   }`}
                 >
                   <div className="flex justify-between items-start">
-                    <span className={`text-[9px] uppercase font-semibold px-1.5 py-0.5 rounded border ${priorityBadge}`}>
+                    <span 
+                      style={priStyle.style}
+                      className={priStyle.className}
+                    >
                       {inc.priority}
                     </span>
                     <span className="text-[9px] font-mono text-ink-tertiary">/p/{slugLabel}</span>
@@ -2592,13 +2999,21 @@ export default function Dashboard() {
                   <span className="text-ink-subtle">Priority:</span>
                   <select 
                     value={selectedIncident.priority}
-                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { priority: e.target.value as any })}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary"
+                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { priority: e.target.value })}
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary uppercase"
                   >
-                    <option value="urgent">Urgent</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
+                    {severityPriorities.length > 0 ? (
+                      severityPriorities.map(p => (
+                        <option key={p.id} value={p.name}>{p.name}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="urgent">Urgent</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -3047,6 +3462,7 @@ export default function Dashboard() {
       )}
 
       {renderCreateChannelModal()}
+      {renderCreatePriorityModal()}
 
     </div>
   );

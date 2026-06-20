@@ -140,7 +140,7 @@ create table if not exists public.incidents (
     title text not null,
     description text,
     status text default 'todo' not null check (status in ('todo', 'in_progress', 'done')),
-    priority text default 'medium' not null check (priority in ('urgent', 'high', 'medium', 'low')),
+    priority text default 'medium' not null,
     assignee text,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -225,6 +225,29 @@ create index if not exists alert_channels_user_idx on public.alert_channels(user
 
 -- RLS Policy
 create policy alert_channels_all_policy on public.alert_channels
+    for all using ((select auth.uid()) = user_id);
+
+
+-- 9. Severity Priorities Table
+create table if not exists public.severity_priorities (
+    id uuid default gen_random_uuid() primary key,
+    user_id uuid references public.users(id) on delete cascade not null,
+    name text not null,
+    color text not null,
+    rank integer default 1 not null,
+    threshold_failures integer default 1 not null,
+    alert_channel_id uuid references public.alert_channels(id) on delete set null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Enable RLS
+alter table public.severity_priorities enable row level security;
+
+-- Index
+create index if not exists severity_priorities_user_idx on public.severity_priorities(user_id);
+
+-- RLS Policy
+create policy severity_priorities_all_policy on public.severity_priorities
     for all using ((select auth.uid()) = user_id);
 
 

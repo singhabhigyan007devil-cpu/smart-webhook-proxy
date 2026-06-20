@@ -223,5 +223,35 @@ class AlertChannelResponse(AlertChannelBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Severity Priority Schemas ---
+class SeverityPriorityBase(BaseModel):
+    name: str
+    color: str
+    rank: int
+    threshold_failures: int
+    alert_channel_id: Optional[str] = None
+
+class SeverityPriorityCreate(SeverityPriorityBase):
+    pass
+
+class SeverityPriorityUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    rank: Optional[int] = None
+    threshold_failures: Optional[int] = None
+    alert_channel_id: Optional[str] = None
+
+class SeverityPriorityResponse(SeverityPriorityBase):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 
 
