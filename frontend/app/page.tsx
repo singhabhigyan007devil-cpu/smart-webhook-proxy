@@ -239,7 +239,13 @@ export default function Dashboard() {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts" | "analytics" | "settings">("logs");
 
-  // Analytics States
+  
+  // Issue Filter States
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterPriority, setFilterPriority] = useState("");
+// Analytics States
   const [analyticsKPIs, setAnalyticsKPIs] = useState<AnalyticsKPIs | null>(null);
   const [analyticsTimeSeries, setAnalyticsTimeSeries] = useState<AnalyticsTimeSeriesPoint[]>([]);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
@@ -415,7 +421,12 @@ export default function Dashboard() {
       }
 
       // 4. Fetch Webhook Issues
-      const incRes = await fetch(`${API_BASE}/api/issues`, { headers });
+      const queryParams = new URLSearchParams();
+      if (filterSearch) queryParams.append("search", filterSearch);
+      if (filterStatus) queryParams.append("status", filterStatus);
+      if (filterType) queryParams.append("issue_type", filterType);
+      if (filterPriority) queryParams.append("priority", filterPriority);
+      const incRes = await fetch(`${API_BASE}/api/issues?${queryParams.toString()}`, { headers });
       if (incRes.ok) {
         const data = await incRes.json();
         setIssues(data);
@@ -466,7 +477,7 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Error polling backend dashboard data", err);
     }
-  }, [apiKey]);
+  }, [apiKey, filterSearch, filterStatus, filterType, filterPriority]);
 
   const fetchAnalytics = useCallback(async () => {
     if (!apiKey) return;
@@ -505,7 +516,7 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Failed to fetch issue comments", err);
     }
-  }, [apiKey]);
+  }, [apiKey, filterSearch, filterStatus, filterType, filterPriority]);
 
   useEffect(() => {
     if (selectedIssue) {
