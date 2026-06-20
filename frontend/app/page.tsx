@@ -3683,6 +3683,71 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                 </div>
               </div>
 
+              {/* Sub-Issues Section */}
+              <div className="space-y-3 pt-4 border-t border-hairline">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-semibold text-ink-subtle uppercase tracking-wider">Sub-Issues</h4>
+                </div>
+                <div className="space-y-2">
+                  {issues.filter(i => i.parent_id === selectedIssue.id).length === 0 ? (
+                    <p className="text-[11px] text-ink-tertiary italic">No sub-issues yet.</p>
+                  ) : (
+                    issues.filter(i => i.parent_id === selectedIssue.id).map(sub => (
+                      <div key={sub.id} className="flex items-center justify-between bg-surface-2 border border-hairline rounded px-3 py-2 cursor-pointer hover:border-primary/50" onClick={() => setSelectedIssue(sub)}>
+                        <div className="flex items-center space-x-2 truncate">
+                          <span className={`w-2 h-2 rounded-full ${sub.status === 'done' ? 'bg-emerald-500' : sub.status === 'in_progress' ? 'bg-blue-500' : 'bg-amber-500'}`}></span>
+                          <span className={`text-xs ${sub.status === 'done' ? 'line-through text-ink-muted' : 'text-ink'} truncate`}>{sub.title}</span>
+                        </div>
+                        <span className="text-[10px] uppercase font-mono text-ink-tertiary">{sub.status}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                
+                {/* Add Sub-Issue Form */}
+                <form 
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const form = e.target as HTMLFormElement;
+                    const input = form.elements.namedItem('subIssueTitle') as HTMLInputElement;
+                    const title = input.value.trim();
+                    if (!title) return;
+                    
+                    try {
+                      const res = await fetch(`${API_BASE}/api/issues`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionApiKey}` },
+                        body: JSON.stringify({
+                          title,
+                          parent_id: selectedIssue.id,
+                          status: 'todo',
+                          priority: 'medium',
+                          issue_type: 'task',
+                          project_id: selectedIssue.project_id
+                        })
+                      });
+                      if (res.ok) {
+                        input.value = '';
+                        fetchIssues();
+                      }
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                  className="flex space-x-2 pt-1"
+                >
+                  <input 
+                    name="subIssueTitle"
+                    type="text" 
+                    placeholder="Add a sub-issue..." 
+                    className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2.5 py-1.5 focus:outline-none flex-1"
+                  />
+                  <button type="submit" className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 text-xs rounded font-medium px-3 py-1.5 transition-colors">
+                    Add
+                  </button>
+                </form>
+              </div>
+
               {/* Comments Section */}
               <div className="space-y-4 pt-4 border-t border-hairline">
                 <h4 className="text-xs font-semibold text-ink-subtle uppercase tracking-wider">Comments Stream</h4>
@@ -3770,6 +3835,8 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
               
               {/* Static Commands */}
               {[
+                { label: "Create new Issue", shortcut: "C", action: () => { setShowCommandMenu(false); setShowCreateIssueModal(true); } },
+                { label: "Go to Settings & GitHub Sync", shortcut: "S", action: () => setActiveTab("settings") },
                 { label: "Switch to Live Event Logs", shortcut: "L", action: () => setActiveTab("logs") },
                 { label: "Switch to Issue Kanban Board", shortcut: "B", action: () => setActiveTab("board") },
                 { label: "Switch to Roadmap Initiatives", shortcut: "R", action: () => setActiveTab("roadmaps") },
