@@ -20,8 +20,10 @@ import {
   AlertTriangle,
   Keyboard,
   Compass,
-  Bell
+  Bell,
+  BarChart2
 } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
 
 const API_BASE = "http://localhost:8000";
 
@@ -113,7 +115,17 @@ interface SeverityPriority {
   created_at: string;
 }
 
+interface AnalyticsKPIs {
+  total_volume: number;
+  success_rate: number;
+  avg_latency_ms: number;
+}
 
+interface AnalyticsTimeSeriesPoint {
+  date: string;
+  success_count: number;
+  failed_count: number;
+}
 
 interface WebhookLog {
   id: string;
@@ -198,7 +210,13 @@ export default function Dashboard() {
   const [roadmapViewMode, setRoadmapViewMode] = useState<"list" | "timeline">("list");
   
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts" | "analytics">("logs");
+
+  // Analytics States
+  const [analyticsKPIs, setAnalyticsKPIs] = useState<AnalyticsKPIs | null>(null);
+  const [analyticsTimeSeries, setAnalyticsTimeSeries] = useState<AnalyticsTimeSeriesPoint[]>([]);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+  const [analyticsDaysFilter, setAnalyticsDaysFilter] = useState(30);
 
   // Alert Channels States
   const [alertChannels, setAlertChannels] = useState<AlertChannel[]>([]);
@@ -409,6 +427,30 @@ export default function Dashboard() {
     }
   }, [apiKey]);
 
+  const fetchAnalytics = useCallback(async () => {
+    if (!apiKey) return;
+    setIsLoadingAnalytics(true);
+    try {
+      const headers = { "Authorization": `Bearer ${apiKey}` };
+      const [kpiRes, tsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/analytics/kpis`, { headers }),
+        fetch(`${API_BASE}/api/analytics/timeseries?days=${analyticsDaysFilter}`, { headers })
+      ]);
+      
+      if (kpiRes.ok) {
+        setAnalyticsKPIs(await kpiRes.json());
+      }
+      if (tsRes.ok) {
+        const tsData = await tsRes.json();
+        setAnalyticsTimeSeries(tsData.data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching analytics", err);
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
+  }, [apiKey, analyticsDaysFilter]);
+
   // Comments & Incident Mutator functions
   const fetchIncidentComments = useCallback(async (incidentId: string) => {
     if (!apiKey) return;
@@ -432,6 +474,12 @@ export default function Dashboard() {
       setIncidentComments([]);
     }
   }, [selectedIncident, fetchIncidentComments]);
+
+  useEffect(() => {
+    if (activeTab === "analytics") {
+      fetchAnalytics();
+    }
+  }, [activeTab, fetchAnalytics, analyticsDaysFilter]);
 
   const handleUpdateIncident = async (id: string, updates: Partial<Incident>) => {
     if (!apiKey) return;
@@ -1987,6 +2035,95 @@ export default function Dashboard() {
     );
   };
 
+  const renderAnalyticsTab = () => {
+    if (isLoadingAnalytics && !analyticsKPIs) {
+      return (
+        <div className="flex flex-col bg-canvas min-h-[450px] p-6 justify-center items-center">
+          <RefreshCw className="w-8 h-8 text-primary animate-spin mb-4" />
+          <p className="text-ink-subtle text-sm">Loading analytics data...</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col bg-canvas min-h-[450px] p-6 space-y-6">
+        <div className="flex items-center justify-between pb-4 border-b border-hairline">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Analytics & Metrics</h3>
+            <p className="text-xs text-ink-subtle mt-0.5">
+              Visualize webhook volume, delivery success rates, and average latency.
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Time Range:</span>
+            <select 
+              value={analyticsDaysFilter}
+              onChange={(e) => setAnalyticsDaysFilter(Number(e.target.value))}
+              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer"
+            >
+              <option value={7}>Last 7 Days</option>
+              <option value={30}>Last 30 Days</option>
+              <option value={90}>Last 90 Days</option>
+            </select>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-surface-1 border border-hairline rounded-lg p-5">
+            <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Total Volume</span>
+            <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
+              {analyticsKPIs?.total_volume?.toLocaleString() || 0}
+            </h2>
+          </div>
+          <div className="bg-surface-1 border border-hairline rounded-lg p-5">
+            <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Success Rate</span>
+            <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
+              {analyticsKPIs?.success_rate || 0}%
+            </h2>
+          </div>
+          <div className="bg-surface-1 border border-hairline rounded-lg p-5">
+            <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Avg Latency</span>
+            <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
+              {analyticsKPIs?.avg_latency_ms || 0} ms
+            </h2>
+          </div>
+        </div>
+
+        {/* Charts */}
+        <div className="bg-surface-1 border border-hairline rounded-lg p-5">
+          <h4 className="text-xs font-semibold text-ink mb-4 uppercase tracking-wider">Delivery Success Over Time</h4>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={analyticsTimeSeries}>
+                <defs>
+                  <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" vertical={false} />
+                <XAxis dataKey="date" stroke="#718096" fontSize={10} tickMargin={10} minTickGap={20} />
+                <YAxis stroke="#718096" fontSize={10} />
+                <RechartsTooltip 
+                  contentStyle={{ backgroundColor: '#1a202c', borderColor: '#2d3748', fontSize: '12px' }}
+                  itemStyle={{ color: '#e2e8f0' }}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                <Area type="monotone" dataKey="success_count" name="Success" stroke="#10b981" fillOpacity={1} fill="url(#colorSuccess)" />
+                <Area type="monotone" dataKey="failed_count" name="Failed" stroke="#f59e0b" fillOpacity={1} fill="url(#colorFailed)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderBoardColumn = (colStatus: "todo" | "in_progress" | "done", label: string, badgeStyles: string) => {
     const colIncidents = incidents.filter(i => i.status === colStatus);
     const isDraggedOver = draggedOverCol === colStatus;
@@ -2487,6 +2624,15 @@ export default function Dashboard() {
                   <Bell className="w-4 h-4" />
                   <span>Alerts ({alertChannels.length})</span>
                 </button>
+                <button 
+                  onClick={() => setActiveTab("analytics")}
+                  className={`text-sm font-semibold tracking-tight transition-colors duration-150 flex items-center space-x-2 pb-0.5 ${
+                    activeTab === "analytics" ? "text-ink border-b-2 border-primary" : "text-ink-subtle hover:text-ink"
+                  }`}
+                >
+                  <BarChart2 className="w-4 h-4" />
+                  <span>Analytics</span>
+                </button>
               </div>
               <div className="flex items-center space-x-3">
                 {activeTab === "logs" && (
@@ -2676,6 +2822,10 @@ export default function Dashboard() {
             ) : activeTab === "alerts" ? (
               <div>
                 {renderAlertChannelsTab()}
+              </div>
+            ) : activeTab === "analytics" ? (
+              <div>
+                {renderAnalyticsTab()}
               </div>
             ) : (
               /* Dense Monospace Table */

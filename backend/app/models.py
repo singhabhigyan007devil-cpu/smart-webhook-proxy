@@ -49,6 +49,7 @@ class WebhookLog(Base):
     retry_count = Column(Integer, default=0, nullable=False)
     error_message = Column(Text, nullable=True)
     event_hash = Column(String(64), nullable=True, index=True)
+    latency_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

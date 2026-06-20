@@ -46,6 +46,7 @@ create table if not exists public.webhook_logs (
     retry_count integer default 0 not null,
     error_message text,
     event_hash text,
+    latency_ms integer,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );

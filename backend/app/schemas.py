@@ -254,4 +254,16 @@ class SeverityPriorityResponse(SeverityPriorityBase):
 
 
 
+# --- Analytics Schemas ---
+class AnalyticsKPIs(BaseModel):
+    total_volume: int
+    success_rate: float
+    avg_latency_ms: float
 
+class AnalyticsTimeSeriesPoint(BaseModel):
+    date: str
+    success_count: int
+    failed_count: int
+
+class AnalyticsTimeSeriesResponse(BaseModel):
+    data: List[AnalyticsTimeSeriesPoint]
