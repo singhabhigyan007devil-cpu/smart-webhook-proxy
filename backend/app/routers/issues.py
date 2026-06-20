@@ -1,3 +1,5 @@
+import httpx
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -92,6 +94,46 @@ async def create_issue(
     query = select(Issue).options(selectinload(Issue.custom_values)).where(Issue.id == new_issue.id)
     result = await db.execute(query)
     issue_full = result.scalars().first()
+
+    
+    # Sync to GitHub if configured
+    if current_user.github_pat and payload.project_id:
+        proj_q2 = select(Project).where(Project.id == payload.project_id)
+        proj_r2 = await db.execute(proj_q2)
+        project = proj_r2.scalars().first()
+        if project and project.github_repo:
+            try:
+                # Fire and forget GitHub issue creation
+                async def create_github_issue(pat, repo, title, body):
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.post(
+                            f"https://api.github.com/repos/{repo}/issues",
+                            headers={
+                                "Authorization": f"token {pat}",
+                                "Accept": "application/vnd.github.v3+json",
+                                "User-Agent": "HookShield-App"
+                            },
+                            json={"title": title, "body": body}
+                        )
+                        if resp.status_code == 201:
+                            data = resp.json()
+                            return data.get("number"), data.get("html_url")
+                        return None, None
+                        
+                number, url = await create_github_issue(
+                    current_user.github_pat, 
+                    project.github_repo, 
+                    issue_full.title, 
+                    issue_full.description or "Created from HookShield"
+                )
+                
+                if number and url:
+                    issue_full.github_issue_number = number
+                    issue_full.github_issue_url = url
+                    await db.commit()
+                    await db.refresh(issue_full)
+            except Exception as e:
+                print(f"Failed to sync to GitHub: {e}")
 
     # Broadcast create event
     try:
