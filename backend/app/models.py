@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import Column, String, Boolean, Integer, ForeignKey, Text, DateTime, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from backend.app.db import Base
 
@@ -111,6 +111,7 @@ class Issue(Base):
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     endpoint_id = Column(String(36), ForeignKey("endpoints.id", ondelete="SET NULL"), nullable=True, index=True)
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
+    parent_id = Column(String(36), ForeignKey("issues.id", ondelete="CASCADE"), nullable=True, index=True)
     issue_type = Column(String(50), default="incident", nullable=False) 
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
@@ -127,6 +128,7 @@ class Issue(Base):
     project = relationship("Project", back_populates="issues")
     comments = relationship("IssueComment", back_populates="issue", cascade="all, delete-orphan")
     custom_values = relationship("IssueCustomValue", back_populates="issue", cascade="all, delete-orphan")
+    sub_issues = relationship("Issue", backref=backref("parent", remote_side=[id]), cascade="all, delete-orphan")
 
 class IssueComment(Base):
     __tablename__ = "issue_comments"

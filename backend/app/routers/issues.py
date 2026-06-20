@@ -67,6 +67,7 @@ async def create_issue(
         user_id=current_user.id,
         endpoint_id=payload.endpoint_id,
         project_id=payload.project_id,
+        parent_id=payload.parent_id,
         issue_type=payload.issue_type,
         title=payload.title,
         description=payload.description,

@@ -234,6 +234,7 @@ class IssueCommentResponse(BaseModel):
 class IssueCreate(BaseModel):
     endpoint_id: Optional[str] = None
     project_id: Optional[str] = None
+    parent_id: Optional[str] = None
     issue_type: str = "incident"
     title: str
     description: Optional[str] = None
@@ -252,6 +253,7 @@ class IssueUpdate(BaseModel):
     story_points: Optional[int] = None
     assignee: Optional[str] = None
     project_id: Optional[str] = None
+    parent_id: Optional[str] = None
     completed_at: Optional[datetime] = None
 
 class IssueResponse(BaseModel):
@@ -259,6 +261,7 @@ class IssueResponse(BaseModel):
     user_id: str
     endpoint_id: Optional[str] = None
     project_id: Optional[str] = None
+    parent_id: Optional[str] = None
     issue_type: str
     title: str
     description: Optional[str] = None
