@@ -15,6 +15,7 @@ class User(Base):
 
     endpoints = relationship("Endpoint", back_populates="user", cascade="all, delete-orphan")
     alert_channels = relationship("AlertChannel", back_populates="user", cascade="all, delete-orphan")
+    severity_priorities = relationship("SeverityPriority", back_populates="user", cascade="all, delete-orphan")
 
 class Endpoint(Base):
     __tablename__ = "endpoints"
@@ -127,4 +128,20 @@ class AlertChannel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="alert_channels")
+
+
+class SeverityPriority(Base):
+    __tablename__ = "severity_priorities"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    color = Column(String(50), nullable=False)  # HSL or hex color code
+    rank = Column(Integer, default=1, nullable=False)
+    threshold_failures = Column(Integer, default=1, nullable=False)
+    alert_channel_id = Column(String(36), ForeignKey("alert_channels.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="severity_priorities")
+    alert_channel = relationship("AlertChannel")
 
