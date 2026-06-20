@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from backend.app.config import settings
 from backend.app.db import init_db, engine
-from backend.app.routers import ingest, worker, endpoints, incidents, projects, alert_channels, severity_priorities, analytics
+from backend.app.routers import ingest, worker, endpoints, issues, workflows, projects, alert_channels, severity_priorities, analytics
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,7 +43,8 @@ app.add_middleware(
 app.include_router(ingest.router)
 app.include_router(worker.router)
 app.include_router(endpoints.router, prefix="/api")
-app.include_router(incidents.router, prefix="/api")
+app.include_router(issues.router, prefix="/api")
+app.include_router(workflows.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(alert_channels.router, prefix="/api")
 app.include_router(severity_priorities.router, prefix="/api")

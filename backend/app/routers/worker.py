@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from backend.app.db import get_db
-from backend.app.models import Endpoint, WebhookLog, Incident
+from backend.app.models import Endpoint, WebhookLog, Issue
 from backend.app.config import settings
 from backend.app.idempotency import check_and_register_event
 from backend.app.circuit_breaker import register_success, register_failure
@@ -248,13 +248,13 @@ async def process_webhook_task(
                 log.error_message = f"Dropped: Max retries ({max_retries_limit}) exceeded. Last error: {error_msg}"
             await db.commit()
 
-            # Auto-create Webhook Incident in the database
+            # Auto-create Webhook Issue in the database
             try:
-                incident_res = await db.execute(
-                    select(Incident)
-                    .where(Incident.endpoint_id == endpoint_id, Incident.status != "done")
+                issue_res = await db.execute(
+                    select(Issue)
+                    .where(Issue.endpoint_id == endpoint_id, Issue.status != "done")
                 )
-                existing_incident = incident_res.scalars().first()
+                existing_issue = issue_res.scalars().first()
                 
                 # Fetch user's custom severity priorities
                 from backend.app.models import SeverityPriority
@@ -272,7 +272,7 @@ async def process_webhook_task(
                         
                 severity = matched_priority.name if matched_priority else ("urgent" if tripped else "high")
                 
-                if not existing_incident:
+                if not existing_issue:
                     title = f"Delivery failed for slug /p/{endpoint.slug}"
                     description = (
                         f"Webhook delivery has permanently failed.\n\n"
@@ -282,48 +282,48 @@ async def process_webhook_task(
                         f"**Last HTTP Code:** {status_code or 'N/A'}"
                     )
                     
-                    new_incident = Incident(
+                    new_issue = Issue(
                         endpoint_id=endpoint_id,
                         title=title,
                         description=description,
                         status="todo",
                         priority=severity
                     )
-                    db.add(new_incident)
+                    db.add(new_issue)
                     await db.commit()
                     
                     # Broadcast creation event
                     try:
                         from backend.app.websockets import manager
-                        from backend.app.schemas import IncidentResponse
+                        from backend.app.schemas import IssueResponse
                         await manager.broadcast({
-                            "event": "incident_created",
-                            "data": IncidentResponse.model_validate(new_incident).model_dump()
+                            "event": "issue_created",
+                            "data": IssueResponse.model_validate(new_issue).model_dump()
                         })
                     except Exception as ws_err:
-                        print(f"[WORKER WS ERROR] Failed to broadcast incident creation: {ws_err}")
+                        print(f"[WORKER WS ERROR] Failed to broadcast issue creation: {ws_err}")
 
-                    print(f"[WORKER] Created Incident for dropped webhook on slug /p/{endpoint.slug}")
+                    print(f"[WORKER] Created Issue for dropped webhook on slug /p/{endpoint.slug}")
                 else:
                     # Escalation check
-                    if existing_incident.priority != severity:
-                        existing_incident.priority = severity
+                    if existing_issue.priority != severity:
+                        existing_issue.priority = severity
                         await db.commit()
-                        await db.refresh(existing_incident)
+                        await db.refresh(existing_issue)
                         
                         # Broadcast update event
                         try:
                             from backend.app.websockets import manager
-                            from backend.app.schemas import IncidentResponse
+                            from backend.app.schemas import IssueResponse
                             await manager.broadcast({
-                                "event": "incident_updated",
-                                "data": IncidentResponse.model_validate(existing_incident).model_dump()
+                                "event": "issue_updated",
+                                "data": IssueResponse.model_validate(existing_issue).model_dump()
                             })
                         except Exception as ws_err:
-                            print(f"[WORKER WS ERROR] Failed to broadcast incident update: {ws_err}")
+                            print(f"[WORKER WS ERROR] Failed to broadcast issue update: {ws_err}")
                             
             except Exception as e:
-                print(f"[WORKER ERROR] Failed to create/update database Incident: {e}")
+                print(f"[WORKER ERROR] Failed to create/update database Issue: {e}")
 
             # Trigger Slack/Discord Alert Webhook if configured
             if endpoint.alert_webhook_url:

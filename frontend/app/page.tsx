@@ -23,7 +23,7 @@ import {
   Bell,
   BarChart2
 } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line, Legend } from "recharts";
 
 const API_BASE = "http://localhost:8000";
 
@@ -50,13 +50,33 @@ interface Endpoint {
   backoff_base?: number;
 }
 
-interface Incident {
+interface WorkflowStatus {
+  id: string;
+  name: string;
+  color: string;
+  order_index: number;
+}
+interface CustomField {
+  id: string;
+  name: string;
+  field_type: string;
+}
+interface IssueCustomValue {
+  id: string;
+  field_id: string;
+  value_text: string;
+}
+interface Issue {
   id: string;
   endpoint_id: string;
   project_id: string | null;
   title: string;
   description: string | null;
-  status: "todo" | "in_progress" | "done";
+  status: string;
+  issue_type: string;
+  story_points: number | null;
+  completed_at: string | null;
+  custom_values: IssueCustomValue[];
   priority: string;
   assignee: string | null;
   created_at: string;
@@ -83,9 +103,9 @@ interface ProjectMilestone {
   created_at: string;
 }
 
-interface IncidentComment {
+interface IssueComment {
   id: string;
-  incident_id: string;
+  issue_id: string;
   commenter: string;
   body: string;
   created_at: string;
@@ -170,10 +190,17 @@ export default function Dashboard() {
   const [copiedSlugId, setCopiedSlugId] = useState<string | null>(null);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   
-  // Incidents & Comments State
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
-  const [incidentComments, setIncidentComments] = useState<IncidentComment[]>([]);
+  // Issues & Comments State
+  const [showCreateIssueModal, setShowCreateIssueModal] = useState(false);
+  const [issueCreateError, setIssueCreateError] = useState<string | null>(null);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [workflowStatuses, setWorkflowStatuses] = useState<WorkflowStatus[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [velocityData, setVelocityData] = useState<any[]>([]);
+  const [burndownData, setBurndownData] = useState<any[]>([]);
+
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [issueComments, setIssueComments] = useState<IssueComment[]>([]);
   const [newCommentBody, setNewCommentBody] = useState("");
   const [commenterName, setCommenterName] = useState("");
   const [assigneeInput, setAssigneeInput] = useState("");
@@ -210,7 +237,7 @@ export default function Dashboard() {
   const [roadmapViewMode, setRoadmapViewMode] = useState<"list" | "timeline">("list");
   
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts" | "analytics">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts" | "analytics" | "settings">("logs");
 
   // Analytics States
   const [analyticsKPIs, setAnalyticsKPIs] = useState<AnalyticsKPIs | null>(null);
@@ -318,12 +345,12 @@ export default function Dashboard() {
     setUser(null);
     setEndpoints([]);
     setLogs([]);
-    setIncidents([]);
+    setIssues([]);
     setAlertChannels([]);
     setSeverityPriorities([]);
     setSelectedEndpoint(null);
     setSelectedLog(null);
-    setSelectedIncident(null);
+    setSelectedIssue(null);
   };
 
   const getPriorityStyle = (priorityName: string) => {
@@ -387,11 +414,11 @@ export default function Dashboard() {
         setLogs(data);
       }
 
-      // 4. Fetch Webhook Incidents
-      const incRes = await fetch(`${API_BASE}/api/incidents`, { headers });
+      // 4. Fetch Webhook Issues
+      const incRes = await fetch(`${API_BASE}/api/issues`, { headers });
       if (incRes.ok) {
         const data = await incRes.json();
-        setIncidents(data);
+        setIssues(data);
       }
 
       // 5. Fetch Projects
@@ -422,6 +449,20 @@ export default function Dashboard() {
         const data = await prioritiesRes.json();
         setSeverityPriorities(data);
       }
+      // 8. Fetch Workflow Statuses
+      const statusesRes = await fetch(`${API_BASE}/api/workflows/statuses`, { headers });
+      if (statusesRes.ok) {
+        const data = await statusesRes.json();
+        setWorkflowStatuses(data);
+      }
+
+      // 9. Fetch Custom Fields
+      const cfsRes = await fetch(`${API_BASE}/api/workflows/custom_fields`, { headers });
+      if (cfsRes.ok) {
+        const data = await cfsRes.json();
+        setCustomFields(data);
+      }
+
     } catch (err) {
       console.error("Error polling backend dashboard data", err);
     }
@@ -451,29 +492,29 @@ export default function Dashboard() {
     }
   }, [apiKey, analyticsDaysFilter]);
 
-  // Comments & Incident Mutator functions
-  const fetchIncidentComments = useCallback(async (incidentId: string) => {
+  // Comments & Issue Mutator functions
+  const fetchIssueComments = useCallback(async (issueId: string) => {
     if (!apiKey) return;
     try {
       const headers = { "Authorization": `Bearer ${apiKey}` };
-      const response = await fetch(`${API_BASE}/api/incidents/${incidentId}/comments`, { headers });
+      const response = await fetch(`${API_BASE}/api/issues/${issueId}/comments`, { headers });
       if (response.ok) {
         const data = await response.json();
-        setIncidentComments(data);
+        setIssueComments(data);
       }
     } catch (err) {
-      console.error("Failed to fetch incident comments", err);
+      console.error("Failed to fetch issue comments", err);
     }
   }, [apiKey]);
 
   useEffect(() => {
-    if (selectedIncident) {
-      fetchIncidentComments(selectedIncident.id);
-      setAssigneeInput(selectedIncident.assignee || "");
+    if (selectedIssue) {
+      fetchIssueComments(selectedIssue.id);
+      setAssigneeInput(selectedIssue.assignee || "");
     } else {
-      setIncidentComments([]);
+      setIssueComments([]);
     }
-  }, [selectedIncident, fetchIncidentComments]);
+  }, [selectedIssue, fetchIssueComments]);
 
   useEffect(() => {
     if (activeTab === "analytics") {
@@ -481,10 +522,10 @@ export default function Dashboard() {
     }
   }, [activeTab, fetchAnalytics, analyticsDaysFilter]);
 
-  const handleUpdateIncident = async (id: string, updates: Partial<Incident>) => {
+  const handleUpdateIssue = async (id: string, updates: Partial<Issue>) => {
     if (!apiKey) return;
     try {
-      const response = await fetch(`${API_BASE}/api/incidents/${id}`, {
+      const response = await fetch(`${API_BASE}/api/issues/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -494,23 +535,23 @@ export default function Dashboard() {
       });
       if (response.ok) {
         const updated = await response.json();
-        setIncidents(prev => prev.map(inc => inc.id === id ? updated : inc));
-        if (selectedIncident?.id === id) {
-          setSelectedIncident(updated);
+        setIssues(prev => prev.map(inc => inc.id === id ? updated : inc));
+        if (selectedIssue?.id === id) {
+          setSelectedIssue(updated);
         }
         fetchData();
       }
     } catch (err) {
-      console.error("Failed to update incident", err);
+      console.error("Failed to update issue", err);
     }
   };
 
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedIncident || !newCommentBody.trim()) return;
+    if (!selectedIssue || !newCommentBody.trim()) return;
     const name = commenterName.trim() || user?.email.split("@")[0] || "developer";
     try {
-      const response = await fetch(`${API_BASE}/api/incidents/${selectedIncident.id}/comments`, {
+      const response = await fetch(`${API_BASE}/api/issues/${selectedIssue.id}/comments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -523,7 +564,7 @@ export default function Dashboard() {
       });
       if (response.ok) {
         setNewCommentBody("");
-        fetchIncidentComments(selectedIncident.id);
+        fetchIssueComments(selectedIssue.id);
       }
     } catch (err) {
       console.error("Failed to post comment", err);
@@ -533,7 +574,7 @@ export default function Dashboard() {
   // Keyboard Shortcuts Refs to avoid stale closures
   const showCommandMenuRef = React.useRef(showCommandMenu);
   const showShortcutsModalRef = React.useRef(showShortcutsModal);
-  const selectedIncidentRef = React.useRef(selectedIncident);
+  const selectedIssueRef = React.useRef(selectedIssue);
 
   useEffect(() => {
     showCommandMenuRef.current = showCommandMenu;
@@ -544,8 +585,8 @@ export default function Dashboard() {
   }, [showShortcutsModal]);
 
   useEffect(() => {
-    selectedIncidentRef.current = selectedIncident;
-  }, [selectedIncident]);
+    selectedIssueRef.current = selectedIssue;
+  }, [selectedIssue]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -565,7 +606,7 @@ export default function Dashboard() {
       }
 
       // 3. c -> Focus comment input (only if details drawer is open)
-      if (!isInputActive && (e.key.toLowerCase() === "c" || e.code === "KeyC") && selectedIncidentRef.current) {
+      if (!isInputActive && (e.key.toLowerCase() === "c" || e.code === "KeyC") && selectedIssueRef.current) {
         e.preventDefault();
         setTimeout(() => {
           const commentInput = document.getElementById("comment-body-input");
@@ -577,11 +618,11 @@ export default function Dashboard() {
       
       // 4. Escape -> Close all
       if (e.key === "Escape" || e.code === "Escape") {
-        if (showCommandMenuRef.current || showShortcutsModalRef.current || selectedIncidentRef.current) {
+        if (showCommandMenuRef.current || showShortcutsModalRef.current || selectedIssueRef.current) {
           e.preventDefault();
           setShowCommandMenu(false);
           setShowShortcutsModal(false);
-          setSelectedIncident(null);
+          setSelectedIssue(null);
         }
       }
       
@@ -599,8 +640,11 @@ export default function Dashboard() {
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeTab, fetchData]);
+
 
 
   // Real-Time WebSockets connection
@@ -625,19 +669,19 @@ export default function Dashboard() {
           const message = JSON.parse(event.data);
           console.log("[WS] Received real-time event:", message.event, message.data);
           
-          if (message.event === "incident_created") {
-            const newIncident = message.data;
-            setIncidents(prev => {
-              if (prev.some(i => i.id === newIncident.id)) return prev;
-              return [newIncident, ...prev];
+          if (message.event === "issue_created") {
+            const newIssue = message.data;
+            setIssues(prev => {
+              if (prev.some(i => i.id === newIssue.id)) return prev;
+              return [newIssue, ...prev];
             });
             fetchData();
           } 
           
-          else if (message.event === "incident_updated") {
+          else if (message.event === "issue_updated") {
             const updated = message.data;
-            setIncidents(prev => prev.map(i => i.id === updated.id ? updated : i));
-            setSelectedIncident(prev => {
+            setIssues(prev => prev.map(i => i.id === updated.id ? updated : i));
+            setSelectedIssue(prev => {
               if (prev?.id === updated.id) {
                 setAssigneeInput(updated.assignee || "");
                 return updated;
@@ -665,7 +709,7 @@ export default function Dashboard() {
           else if (message.event === "project_deleted") {
             const { id } = message.data;
             setProjects(prev => prev.filter(p => p.id !== id));
-            setIncidents(prev => prev.map(i => i.project_id === id ? { ...i, project_id: null } : i));
+            setIssues(prev => prev.map(i => i.project_id === id ? { ...i, project_id: null } : i));
             fetchData();
           }          
           else if (message.event === "milestone_created") {
@@ -724,9 +768,9 @@ export default function Dashboard() {
           }
           else if (message.event === "comment_created") {
             const newComment = message.data;
-            setSelectedIncident(prevSelected => {
-              if (prevSelected?.id === newComment.incident_id) {
-                setIncidentComments(prevComments => {
+            setSelectedIssue(prevSelected => {
+              if (prevSelected?.id === newComment.issue_id) {
+                setIssueComments(prevComments => {
                   if (prevComments.some(c => c.id === newComment.id)) return prevComments;
                   return [...prevComments, newComment];
                 });
@@ -1115,7 +1159,7 @@ export default function Dashboard() {
   };
 
   const handleDeleteProject = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this project? Incident mapping will be cleared.")) return;
+    if (!confirm("Are you sure you want to delete this project? Issue mapping will be cleared.")) return;
     try {
       const response = await fetch(`${API_BASE}/api/projects/${id}`, {
         method: "DELETE",
@@ -1283,9 +1327,9 @@ export default function Dashboard() {
           {/* Rows: One per Project */}
           <div className="flex flex-col divide-y divide-hairline">
             {projects.map((proj) => {
-              const projIncidents = incidents.filter(i => i.project_id === proj.id);
-              const completedCount = projIncidents.filter(i => i.status === "done").length;
-              const totalCount = projIncidents.length;
+              const projIssues = issues.filter(i => i.project_id === proj.id);
+              const completedCount = projIssues.filter(i => i.status === "done").length;
+              const totalCount = projIssues.length;
               const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
               
               // Calculate Project Bar Bounds
@@ -1432,8 +1476,8 @@ export default function Dashboard() {
                       );
                     })}
 
-                    {/* Mapped Incident Webhook Failures */}
-                    {projIncidents.map((inc) => {
+                    {/* Mapped Issue Webhook Failures */}
+                    {projIssues.map((inc) => {
                       const incDate = new Date(inc.created_at);
                       const incIdx = Math.floor((incDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
                       if (incIdx < 0 || incIdx >= totalTimelineDays) return null;
@@ -1443,12 +1487,12 @@ export default function Dashboard() {
                         <div 
                           key={inc.id}
                           style={{ left: incLeft }}
-                          onClick={() => setSelectedIncident(inc)}
+                          onClick={() => setSelectedIssue(inc)}
                           className="absolute z-10 group cursor-pointer"
                         >
                           <div className="w-2.5 h-2.5 rounded-full bg-red-500 border border-red-600 animate-pulse shadow-sm hover:scale-125 transition-transform" />
                           
-                          {/* Incident Hover Tooltip */}
+                          {/* Issue Hover Tooltip */}
                           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-surface-1 border border-hairline shadow-xl rounded p-2 z-50 text-[10px] w-44 text-ink font-sans space-y-1">
                             <div className="font-semibold text-red-400 truncate">Webhook Failure</div>
                             <div className="text-ink line-clamp-2 leading-tight">{inc.title}</div>
@@ -1486,7 +1530,7 @@ export default function Dashboard() {
   };
 
   const renderBoardFilterBar = () => {
-    const uniqueAssignees = Array.from(new Set(incidents.map(i => i.assignee).filter((a): a is string => !!a)));
+    const uniqueAssignees = Array.from(new Set(issues.map(i => i.assignee).filter((a): a is string => !!a)));
     const hasFiltersActive = boardSearchQuery.trim() !== "" || boardPriorityFilter !== "all" || boardAssigneeFilter !== "all";
 
     return (
@@ -1497,7 +1541,7 @@ export default function Dashboard() {
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
             <input 
               type="text" 
-              placeholder="Search incidents by title, slug..." 
+              placeholder="Search issues by title, slug..." 
               value={boardSearchQuery}
               onChange={(e) => setBoardSearchQuery(e.target.value)}
               className="w-full bg-surface-2 text-ink text-xs rounded border border-hairline pl-9 pr-2.5 py-1.5 focus:outline-none focus:border-primary-focus transition-all placeholder:text-ink-tertiary"
@@ -1812,7 +1856,123 @@ export default function Dashboard() {
     );
   };
 
-  const renderCreatePriorityModal = () => {
+  
+  const renderCreateIssueModal = () => {
+    if (!showCreateIssueModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="bg-surface border border-hairline rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="px-5 py-4 border-b border-hairline flex justify-between items-center bg-surface-1">
+            <h3 className="font-semibold text-ink">Create New Issue</h3>
+            <button onClick={() => setShowCreateIssueModal(false)} className="text-ink-subtle hover:text-ink transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-5 overflow-y-auto space-y-4">
+            {issueCreateError && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded text-sm flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{issueCreateError}</span>
+              </div>
+            )}
+            <form id="create-issue-form" onSubmit={async (e) => {
+              e.preventDefault();
+              setIssueCreateError(null);
+              const formData = new FormData(e.currentTarget);
+              const title = formData.get("title") as string;
+              const description = formData.get("description") as string;
+              const issue_type = formData.get("issue_type") as string;
+              const priority = formData.get("priority") as string;
+              const story_points = parseInt(formData.get("story_points") as string) || null;
+              const status = formData.get("status") as string || "todo";
+              
+              const payload = {
+                title,
+                description,
+                issue_type,
+                priority,
+                story_points,
+                status
+              };
+              
+              try {
+                const res = await fetch("http://localhost:8000/api/issues", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.api_key}` },
+                  body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                  const data = await res.json();
+                  throw new Error(data.detail || "Failed to create issue");
+                }
+                setShowCreateIssueModal(false);
+                fetchData();
+              } catch (err: any) {
+                setIssueCreateError(err.message);
+              }
+            }}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-ink-subtle mb-1">Title</label>
+                  <input required name="title" className="w-full bg-surface-1 border border-hairline rounded px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none transition-colors" placeholder="E.g. Fix login bug" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-ink-subtle mb-1">Description</label>
+                  <textarea name="description" className="w-full bg-surface-1 border border-hairline rounded px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none transition-colors min-h-[80px]" placeholder="Detailed description..." />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-ink-subtle mb-1">Type</label>
+                    <select name="issue_type" className="w-full bg-surface-1 border border-hairline rounded px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none transition-colors">
+                      <option value="task">Task</option>
+                      <option value="bug">Bug</option>
+                      <option value="story">Story</option>
+                      <option value="incident">Incident</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-ink-subtle mb-1">Priority</label>
+                    <select name="priority" className="w-full bg-surface-1 border border-hairline rounded px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none transition-colors">
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-ink-subtle mb-1">Status</label>
+                    <select name="status" className="w-full bg-surface-1 border border-hairline rounded px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none transition-colors">
+                      {workflowStatuses.length > 0 ? workflowStatuses.map(ws => (
+                        <option key={ws.id} value={ws.name.toLowerCase().replace(/ /g, '_')}>{ws.name}</option>
+                      )) : (
+                        <>
+                          <option value="todo">Todo</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="done">Done</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-ink-subtle mb-1">Story Points</label>
+                    <input type="number" name="story_points" min="0" className="w-full bg-surface-1 border border-hairline rounded px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none transition-colors" placeholder="e.g. 5" />
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div className="px-5 py-4 border-t border-hairline flex justify-end gap-3 bg-surface-1">
+            <button onClick={() => setShowCreateIssueModal(false)} className="px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2 rounded transition-colors">Cancel</button>
+            <button type="submit" form="create-issue-form" className="px-4 py-2 text-sm font-medium bg-primary text-white rounded hover:bg-primary-focus transition-colors shadow-sm">Create Issue</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+const renderCreatePriorityModal = () => {
     if (!showCreatePriorityModal) return null;
     return (
       <div className="fixed inset-0 bg-semantic-overlay/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2035,6 +2195,166 @@ export default function Dashboard() {
     );
   };
 
+  
+  const renderSettingsTab = () => {
+    return (
+      <div className="flex flex-col bg-canvas min-h-[450px] p-6 space-y-8">
+        <div>
+          <h3 className="text-lg font-semibold text-ink">Project Settings</h3>
+          <p className="text-sm text-ink-subtle mt-1">Manage custom fields and workflow statuses for your project.</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Custom Fields */}
+          <div className="bg-surface-1 border border-hairline rounded-lg overflow-hidden">
+            <div className="px-5 py-4 border-b border-hairline flex justify-between items-center bg-surface-2/30">
+              <div>
+                <h4 className="font-medium text-ink">Custom Fields</h4>
+                <p className="text-xs text-ink-subtle">Fields attached to every issue</p>
+              </div>
+            </div>
+            <div className="p-0">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-surface-2/20 text-ink-subtle">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Name</th>
+                    <th className="px-5 py-3 font-medium">Type</th>
+                    <th className="px-5 py-3 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline">
+                  {customFields.map(cf => (
+                    <tr key={cf.id} className="hover:bg-surface-2/30 transition-colors">
+                      <td className="px-5 py-3 text-ink">{cf.name}</td>
+                      <td className="px-5 py-3 text-ink-subtle capitalize">{cf.field_type}</td>
+                      <td className="px-5 py-3 text-right">
+                        <button className="text-red-400 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-4 h-4 inline" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {customFields.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-5 py-6 text-center text-ink-subtle text-xs">No custom fields defined.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <div className="p-5 border-t border-hairline bg-surface-2/10">
+                <form className="flex space-x-3 items-end" onSubmit={async (e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.currentTarget);
+                  const name = fd.get("name") as string;
+                  const field_type = fd.get("field_type") as string;
+                  if (!name) return;
+                  await fetch("http://localhost:8000/api/workflows/custom_fields", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.api_key}` },
+                    body: JSON.stringify({ name, field_type })
+                  });
+                  e.currentTarget.reset();
+                  fetchData(); // Will re-fetch statuses and fields too
+                }}>
+                  <div className="flex-1">
+                    <label className="block text-[10px] uppercase font-semibold text-ink-subtle mb-1">New Field Name</label>
+                    <input name="name" placeholder="e.g. Browser" className="w-full bg-surface border border-hairline rounded px-3 py-1.5 text-sm focus:border-primary focus:outline-none" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] uppercase font-semibold text-ink-subtle mb-1">Type</label>
+                    <select name="field_type" className="w-full bg-surface border border-hairline rounded px-3 py-1.5 text-sm focus:border-primary focus:outline-none">
+                      <option value="text">Text</option>
+                      <option value="number">Number</option>
+                      <option value="date">Date</option>
+                    </select>
+                  </div>
+                  <button type="submit" className="px-3 py-1.5 bg-surface-2 text-ink text-sm font-medium rounded border border-hairline hover:bg-surface-3 transition-colors">Add</button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          {/* Workflow Statuses */}
+          <div className="bg-surface-1 border border-hairline rounded-lg overflow-hidden">
+            <div className="px-5 py-4 border-b border-hairline flex justify-between items-center bg-surface-2/30">
+              <div>
+                <h4 className="font-medium text-ink">Workflow Statuses</h4>
+                <p className="text-xs text-ink-subtle">Custom states for your kanban board</p>
+              </div>
+            </div>
+            <div className="p-0">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-surface-2/20 text-ink-subtle">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Order</th>
+                    <th className="px-5 py-3 font-medium">Name</th>
+                    <th className="px-5 py-3 font-medium">Color</th>
+                    <th className="px-5 py-3 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hairline">
+                  {workflowStatuses.map(ws => (
+                    <tr key={ws.id} className="hover:bg-surface-2/30 transition-colors">
+                      <td className="px-5 py-3 text-ink-subtle">{ws.order_index}</td>
+                      <td className="px-5 py-3 text-ink">{ws.name}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: ws.color }}></div>
+                          <span className="text-ink-subtle">{ws.color}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <button className="text-red-400 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-4 h-4 inline" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {workflowStatuses.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-6 text-center text-ink-subtle text-xs">No workflow statuses defined.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <div className="p-5 border-t border-hairline bg-surface-2/10">
+                <form className="flex space-x-3 items-end" onSubmit={async (e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.currentTarget);
+                  const name = fd.get("name") as string;
+                  const color = fd.get("color") as string;
+                  const order_index = parseInt(fd.get("order_index") as string) || 0;
+                  if (!name) return;
+                  await fetch("http://localhost:8000/api/workflows/statuses", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${user?.api_key}` },
+                    body: JSON.stringify({ name, color, order_index })
+                  });
+                  e.currentTarget.reset();
+                  fetchData();
+                }}>
+                  <div className="flex-[2]">
+                    <label className="block text-[10px] uppercase font-semibold text-ink-subtle mb-1">Status Name</label>
+                    <input name="name" placeholder="e.g. In Review" className="w-full bg-surface border border-hairline rounded px-3 py-1.5 text-sm focus:border-primary focus:outline-none" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] uppercase font-semibold text-ink-subtle mb-1">Color (Hex)</label>
+                    <input name="color" placeholder="#3b82f6" defaultValue="#718096" className="w-full bg-surface border border-hairline rounded px-3 py-1.5 text-sm focus:border-primary focus:outline-none" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] uppercase font-semibold text-ink-subtle mb-1">Order</label>
+                    <input name="order_index" type="number" defaultValue="0" className="w-full bg-surface border border-hairline rounded px-3 py-1.5 text-sm focus:border-primary focus:outline-none" />
+                  </div>
+                  <button type="submit" className="px-3 py-1.5 bg-surface-2 text-ink text-sm font-medium rounded border border-hairline hover:bg-surface-3 transition-colors">Add</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderAnalyticsTab = () => {
     if (isLoadingAnalytics && !analyticsKPIs) {
       return (
@@ -2051,7 +2371,7 @@ export default function Dashboard() {
           <div>
             <h3 className="text-sm font-semibold text-ink">Analytics & Metrics</h3>
             <p className="text-xs text-ink-subtle mt-0.5">
-              Visualize webhook volume, delivery success rates, and average latency.
+              Visualize webhook volume, delivery success rates, velocity, and burndown.
             </p>
           </div>
           <div className="flex items-center space-x-2">
@@ -2091,41 +2411,103 @@ export default function Dashboard() {
         </div>
 
         {/* Charts */}
-        <div className="bg-surface-1 border border-hairline rounded-lg p-5">
-          <h4 className="text-xs font-semibold text-ink mb-4 uppercase tracking-wider">Delivery Success Over Time</h4>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={analyticsTimeSeries}>
-                <defs>
-                  <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" vertical={false} />
-                <XAxis dataKey="date" stroke="#718096" fontSize={10} tickMargin={10} minTickGap={20} />
-                <YAxis stroke="#718096" fontSize={10} />
-                <RechartsTooltip 
-                  contentStyle={{ backgroundColor: '#1a202c', borderColor: '#2d3748', fontSize: '12px' }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Area type="monotone" dataKey="success_count" name="Success" stroke="#10b981" fillOpacity={1} fill="url(#colorSuccess)" />
-                <Area type="monotone" dataKey="failed_count" name="Failed" stroke="#f59e0b" fillOpacity={1} fill="url(#colorFailed)" />
-              </AreaChart>
-            </ResponsiveContainer>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+          <div className="bg-surface-1 border border-hairline rounded-lg p-5">
+            <h4 className="text-xs font-semibold text-ink mb-4">Webhook Volume (Over Time)</h4>
+            <div className="h-64 w-full">
+              {analyticsTimeSeries.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={analyticsTimeSeries} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                    <XAxis 
+                      dataKey="date" 
+                      tickFormatter={(val) => {
+                        const d = new Date(val);
+                        return `${d.getMonth()+1}/${d.getDate()}`;
+                      }}
+                      tick={{ fontSize: 10, fill: '#64748b' }} 
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }}
+                      itemStyle={{ color: '#f8fafc' }}
+                    />
+                    <Area type="monotone" dataKey="success_count" name="Success" stroke="#10b981" fillOpacity={1} fill="url(#colorSuccess)" />
+                    <Area type="monotone" dataKey="failed_count" name="Failed" stroke="#ef4444" fillOpacity={1} fill="url(#colorFailed)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-ink-subtle text-xs">No data available</div>
+              )}
+            </div>
           </div>
+
+          <div className="bg-surface-1 border border-hairline rounded-lg p-5">
+            <h4 className="text-xs font-semibold text-ink mb-4">Velocity (Completed Story Points)</h4>
+            <div className="h-64 w-full">
+              {velocityData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={velocityData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }} />
+                    <Bar dataKey="completed_points" name="Story Points" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-ink-subtle text-xs">No data available</div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-surface-1 border border-hairline rounded-lg p-5 md:col-span-2">
+            <h4 className="text-xs font-semibold text-ink mb-4">Burndown (Open vs Completed Issues)</h4>
+            <div className="h-64 w-full">
+              {burndownData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={burndownData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                    <XAxis 
+                      dataKey="date" 
+                      tickFormatter={(val) => {
+                        const d = new Date(val);
+                        return `${d.getMonth()+1}/${d.getDate()}`;
+                      }}
+                      tick={{ fontSize: 10, fill: '#64748b' }} 
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', fontSize: '12px' }} />
+                    <Line type="monotone" dataKey="open_issues" name="Open Issues" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="completed_issues" name="Completed Issues" stroke="#10b981" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-ink-subtle text-xs">No data available</div>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
     );
   };
-
-  const renderBoardColumn = (colStatus: "todo" | "in_progress" | "done", label: string, badgeStyles: string) => {
-    const colIncidents = incidents.filter(i => i.status === colStatus);
+const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string) => {
+    const colIssues = issues.filter(i => i.status === colStatus);
     const isDraggedOver = draggedOverCol === colStatus;
     
     return (
@@ -2147,9 +2529,9 @@ export default function Dashboard() {
         onDrop={(e) => {
           e.preventDefault();
           setDraggedOverCol(null);
-          const incidentId = e.dataTransfer.getData("text/plain");
-          if (incidentId) {
-            handleUpdateIncident(incidentId, { status: colStatus });
+          const issueId = e.dataTransfer.getData("text/plain");
+          if (issueId) {
+            handleUpdateIssue(issueId, { status: colStatus });
           }
         }}
         className={`flex flex-col space-y-3 p-3 min-h-[400px] rounded border transition-all duration-200 ease-out ${
@@ -2162,14 +2544,14 @@ export default function Dashboard() {
           <span className={`text-[10px] uppercase font-semibold px-2.5 py-0.5 rounded-full border ${badgeStyles}`}>
             {label}
           </span>
-          <span className="text-[10px] text-ink-tertiary font-mono">{colIncidents.length}</span>
+          <span className="text-[10px] text-ink-tertiary font-mono">{colIssues.length}</span>
         </div>
         
         <div className="flex-1 space-y-2 overflow-y-auto max-h-[450px] pr-1">
-          {colIncidents.length === 0 ? (
-            <div className="text-[10px] text-ink-tertiary italic text-center py-4">No incidents</div>
+          {colIssues.length === 0 ? (
+            <div className="text-[10px] text-ink-tertiary italic text-center py-4">No issues</div>
           ) : (
-            colIncidents.map(inc => {
+            colIssues.map(inc => {
               const ep = endpoints.find(e => e.id === inc.endpoint_id);
               const slugLabel = ep ? ep.slug : "deleted";
               
@@ -2178,7 +2560,7 @@ export default function Dashboard() {
               return (
                 <div 
                   key={inc.id}
-                  onClick={() => setSelectedIncident(inc)}
+                  onClick={() => setSelectedIssue(inc)}
                   draggable={true}
                   onDragStart={(e) => {
                     e.dataTransfer.setData("text/plain", inc.id);
@@ -2189,7 +2571,7 @@ export default function Dashboard() {
                     e.currentTarget.classList.remove("opacity-40");
                   }}
                   className={`bg-surface-2 border border-hairline hover:border-hairline-strong rounded p-3 cursor-grab active:cursor-grabbing transition-all duration-150 ${
-                    selectedIncident?.id === inc.id ? "ring-1 ring-primary border-primary bg-primary/5" : ""
+                    selectedIssue?.id === inc.id ? "ring-1 ring-primary border-primary bg-primary/5" : ""
                   }`}
                 >
                   <div className="flex justify-between items-start">
@@ -2604,7 +2986,7 @@ export default function Dashboard() {
                   }`}
                 >
                   <Layers className="w-4 h-4" />
-                  <span>Incident Board ({incidents.filter(i => i.status !== "done").length})</span>
+                  <span>Issue Board ({issues.filter(i => i.status !== "done").length})</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab("roadmaps")}
@@ -2719,9 +3101,9 @@ export default function Dashboard() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {projects.map((proj) => {
-                      const projIncidents = incidents.filter(i => i.project_id === proj.id);
-                      const completedCount = projIncidents.filter(i => i.status === "done").length;
-                      const totalCount = projIncidents.length;
+                      const projIssues = issues.filter(i => i.project_id === proj.id);
+                      const completedCount = projIssues.filter(i => i.status === "done").length;
+                      const totalCount = projIssues.length;
                       const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
                       let statusBadge = "border-hairline text-ink-subtle bg-surface-2";
@@ -2814,9 +3196,16 @@ export default function Dashboard() {
               <div className="flex flex-col bg-canvas min-h-[450px]">
                 {renderBoardFilterBar()}
                 <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {workflowStatuses.length > 0 
+              ? workflowStatuses.map((ws: any) => <React.Fragment key={ws.id}>{renderBoardColumn(ws.name.toLowerCase().replace(/ /g, '_'), ws.name, "bg-surface-2 border-hairline text-ink")}</React.Fragment>)
+              : (
+                <>
                   {renderBoardColumn("todo", "Todo", "bg-amber-500/10 border-amber-500/20 text-amber-400")}
                   {renderBoardColumn("in_progress", "In Progress", "bg-blue-500/10 border-blue-500/20 text-blue-400")}
                   {renderBoardColumn("done", "Done", "bg-emerald-500/10 border-emerald-500/20 text-success")}
+                </>
+              )
+            }
                 </div>
               </div>
             ) : activeTab === "alerts" ? (
@@ -3105,22 +3494,22 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* 4. Slide-out drawer inspect panel for Incidents (From Right) */}
+      {/* 4. Slide-out drawer inspect panel for Issues (From Right) */}
       <div 
         className={`fixed top-0 right-0 h-full w-[500px] bg-surface-1 border-l border-hairline z-50 transform transition-transform duration-200 ease-in-out shadow-2xl flex flex-col ${
-          selectedIncident ? "translate-x-0" : "translate-x-full"
+          selectedIssue ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {selectedIncident && (
+        {selectedIssue && (
           <>
             {/* Drawer Header */}
             <div className="h-[56px] border-b border-hairline bg-surface-2 flex items-center justify-between px-6 shrink-0">
               <div className="flex items-center space-x-2">
                 <Layers className="w-4 h-4 text-primary" />
-                <span className="font-semibold text-sm text-ink">Incident Details</span>
+                <span className="font-semibold text-sm text-ink">Issue Details</span>
               </div>
               <button 
-                onClick={() => setSelectedIncident(null)}
+                onClick={() => setSelectedIssue(null)}
                 className="p-1 rounded bg-surface-1 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors duration-150"
               >
                 <X className="w-4 h-4" />
@@ -3135,8 +3524,8 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center">
                   <span className="text-ink-subtle">Status:</span>
                   <select 
-                    value={selectedIncident.status}
-                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { status: e.target.value as any })}
+                    value={selectedIssue.status}
+                    onChange={(e) => handleUpdateIssue(selectedIssue.id, { status: e.target.value as any })}
                     className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary"
                   >
                     <option value="todo">Todo</option>
@@ -3148,8 +3537,8 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center">
                   <span className="text-ink-subtle">Priority:</span>
                   <select 
-                    value={selectedIncident.priority}
-                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { priority: e.target.value })}
+                    value={selectedIssue.priority}
+                    onChange={(e) => handleUpdateIssue(selectedIssue.id, { priority: e.target.value })}
                     className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary uppercase"
                   >
                     {severityPriorities.length > 0 ? (
@@ -3175,7 +3564,7 @@ export default function Dashboard() {
                       placeholder="Unassigned" 
                       value={assigneeInput}
                       onChange={(e) => setAssigneeInput(e.target.value)}
-                      onBlur={() => handleUpdateIncident(selectedIncident.id, { assignee: assigneeInput.trim() })}
+                      onBlur={() => handleUpdateIssue(selectedIssue.id, { assignee: assigneeInput.trim() })}
                       className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary"
                     />
                   </div>
@@ -3184,8 +3573,8 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center">
                   <span className="text-ink-subtle">Project Initiative:</span>
                   <select 
-                    value={selectedIncident.project_id || ""}
-                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { project_id: e.target.value || null })}
+                    value={selectedIssue.project_id || ""}
+                    onChange={(e) => handleUpdateIssue(selectedIssue.id, { project_id: e.target.value || null })}
                     className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-48 focus:outline-none focus:border-primary cursor-pointer"
                   >
                     <option value="">No Project Initiative</option>
@@ -3198,9 +3587,9 @@ export default function Dashboard() {
 
               {/* Title & Description */}
               <div className="space-y-2">
-                <h3 className="text-base font-semibold text-ink leading-tight">{selectedIncident.title}</h3>
+                <h3 className="text-base font-semibold text-ink leading-tight">{selectedIssue.title}</h3>
                 <div className="text-xs text-ink-muted bg-surface-2 border border-hairline rounded p-4 whitespace-pre-wrap font-mono leading-relaxed">
-                  {selectedIncident.description}
+                  {selectedIssue.description}
                 </div>
               </div>
 
@@ -3209,10 +3598,10 @@ export default function Dashboard() {
                 <h4 className="text-xs font-semibold text-ink-subtle uppercase tracking-wider">Comments Stream</h4>
                 
                 <div className="space-y-3">
-                  {incidentComments.length === 0 ? (
+                  {issueComments.length === 0 ? (
                     <p className="text-[11px] text-ink-tertiary italic">No updates or comments posted yet.</p>
                   ) : (
-                    incidentComments.map(c => (
+                    issueComments.map(c => (
                       <div key={c.id} className="bg-surface-2 border border-hairline rounded p-3 text-xs space-y-1">
                         <div className="flex justify-between text-[10px] text-ink-tertiary">
                           <span className="font-semibold text-primary">{c.commenter}</span>
@@ -3292,7 +3681,7 @@ export default function Dashboard() {
               {/* Static Commands */}
               {[
                 { label: "Switch to Live Event Logs", shortcut: "L", action: () => setActiveTab("logs") },
-                { label: "Switch to Incident Kanban Board", shortcut: "B", action: () => setActiveTab("board") },
+                { label: "Switch to Issue Kanban Board", shortcut: "B", action: () => setActiveTab("board") },
                 { label: "Switch to Roadmap Initiatives", shortcut: "R", action: () => setActiveTab("roadmaps") },
                 { label: "Scroll to top", shortcut: "Home", action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
                 { label: "Log out", shortcut: "Ctrl+Q", action: handleLogout }
@@ -3377,7 +3766,7 @@ export default function Dashboard() {
                     <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">L</kbd>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-ink-subtle">Switch to Incident Board</span>
+                    <span className="text-ink-subtle">Switch to Issue Board</span>
                     <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">B</kbd>
                   </div>
                   <div className="flex justify-between items-center">
@@ -3406,7 +3795,7 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-2">
-                <h4 className="text-[10px] text-ink-tertiary uppercase font-semibold tracking-wider">Incident Details (When open)</h4>
+                <h4 className="text-[10px] text-ink-tertiary uppercase font-semibold tracking-wider">Issue Details (When open)</h4>
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-ink-subtle">Focus comment input</span>
@@ -3612,7 +4001,8 @@ export default function Dashboard() {
       )}
 
       {renderCreateChannelModal()}
-      {renderCreatePriorityModal()}
+      {renderCreateIssueModal()}
+        {renderCreatePriorityModal()}
 
     </div>
   );
