@@ -2,6 +2,9 @@
 import { Settings } from "lucide-react";
 
 import React, { useState, useEffect, useCallback } from "react";
+import ReactMarkdown from 'react-markdown';
+import TipTapEditor from './components/TipTapEditor';
+import remarkGfm from 'remark-gfm';
 import { 
   Shield, 
   Activity, 
@@ -68,6 +71,9 @@ interface IssueCustomValue {
   value_text: string;
 }
 interface Issue {
+  cycle_id?: string;
+  tags?: string[];
+  parent_id?: string;
   id: string;
   endpoint_id: string;
   project_id: string | null;
@@ -82,6 +88,14 @@ interface Issue {
   assignee: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface Cycle {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
 }
 
 interface Project {
@@ -110,6 +124,17 @@ interface IssueComment {
   commenter: string;
   body: string;
   created_at: string;
+}
+
+interface AutomationRule {
+  id: string;
+  name: string;
+  trigger_type: string;
+  condition_field: string | null;
+  condition_value: string | null;
+  action_type: string;
+  action_target: string;
+  is_active: boolean;
 }
 
 interface AlertChannel {
@@ -214,7 +239,17 @@ export default function Dashboard() {
   const [boardAssigneeFilter, setBoardAssigneeFilter] = useState("all");
   
   // Projects & Roadmaps States
+    const [automations, setAutomations] = useState<AutomationRule[]>([]);
+  const [showNewAutomationModal, setShowNewAutomationModal] = useState(false);
+  const [newAutomationName, setNewAutomationName] = useState("");
+  const [newAutomationTrigger, setNewAutomationTrigger] = useState("issue.updated");
+  const [newAutomationConditionField, setNewAutomationConditionField] = useState("status");
+  const [newAutomationConditionValue, setNewAutomationConditionValue] = useState("done");
+  const [newAutomationActionType, setNewAutomationActionType] = useState("webhook");
+  const [newAutomationActionTarget, setNewAutomationActionTarget] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
+  const [cycles, setCycles] = useState<Cycle[]>([]);
+  const [activeCycleFilter, setActiveCycleFilter] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [projectName, setProjectName] = useState("");
@@ -238,7 +273,7 @@ export default function Dashboard() {
   const [roadmapViewMode, setRoadmapViewMode] = useState<"list" | "timeline">("list");
   
   // Navigation Tabs
-  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts" | "analytics" | "settings">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts" | "analytics" | "automations" | "settings">("logs");
 
   
   // Issue Filter States
@@ -867,6 +902,50 @@ export default function Dashboard() {
   }, [apiKey, fetchData]);
 
   // --- Alert Channels CRUD Handlers ---
+    const handleCreateAutomation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAutomationName.trim() || !newAutomationActionTarget.trim()) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/automations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          name: newAutomationName,
+          trigger_type: newAutomationTrigger,
+          condition_field: newAutomationConditionField || null,
+          condition_value: newAutomationConditionValue || null,
+          action_type: newAutomationActionType,
+          action_target: newAutomationActionTarget,
+          is_active: true
+        })
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setAutomations([created, ...automations]);
+        setShowNewAutomationModal(false);
+        setNewAutomationName("");
+        setNewAutomationActionTarget("");
+      }
+    } catch (err) {
+      console.error("Failed to create automation", err);
+    }
+  };
+
+  const handleDeleteAutomation = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/automations/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${apiKey}` }
+      });
+      if (res.ok) {
+        setAutomations(prev => prev.filter(a => a.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete automation", err);
+    }
+  };
+
   const handleCreateAlertChannel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChannelName.trim()) return;
@@ -1102,6 +1181,25 @@ export default function Dashboard() {
       setCreateError("Error communicating with database.");
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleRetryLog = async (endpoint_id: string, log_id: string) => {
+    if (!apiKey) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/endpoints/${endpoint_id}/logs/${log_id}/retry`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}` },
+      });
+      if (res.ok) {
+        fetchData(apiKey);
+      } else {
+        const data = await res.json();
+        alert(`Failed to retry: ${data.detail || "Unknown error"}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error triggering retry.");
     }
   };
 
@@ -2661,6 +2759,19 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                     <span className="text-[9px] font-mono text-ink-tertiary">/p/{slugLabel}</span>
                   </div>
                   <h4 className="text-xs font-semibold text-ink mt-2 line-clamp-2">{inc.title}</h4>
+                  {inc.tags && inc.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {inc.tags.map(tag => {
+                        const colors = ['bg-rose-500/10 text-rose-400 border-rose-500/20', 'bg-blue-500/10 text-blue-400 border-blue-500/20', 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', 'bg-purple-500/10 text-purple-400 border-purple-500/20', 'bg-amber-500/10 text-amber-400 border-amber-500/20', 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'];
+                        const colorClass = colors[tag.charCodeAt(0) % colors.length];
+                        return (
+                          <span key={tag} className={`text-[9px] px-1.5 py-0.5 rounded border font-medium uppercase tracking-wider ${colorClass}`}>
+                            {tag}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                   {inc.assignee && (
                     <div className="mt-3 flex items-center space-x-1.5 text-[9px] text-primary font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -3093,6 +3204,15 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                   <span>Analytics</span>
                 </button>
                 <button 
+                  onClick={() => setActiveTab("automations")}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded transition-colors ${
+                    activeTab === "automations" ? "bg-surface-3 text-ink" : "text-ink-subtle hover:text-ink hover:bg-surface-2"
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                  <span>Automations</span>
+                </button>
+                <button 
                   onClick={() => setActiveTab("settings")}
                   className={`text-sm font-semibold tracking-tight transition-colors duration-150 flex items-center space-x-2 pb-0.5 ${
                     activeTab === "settings" ? "text-ink border-b-2 border-primary" : "text-ink-subtle hover:text-ink"
@@ -3307,26 +3427,18 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                 {renderSettingsTab()}
               </div>
             ) : (
-              /* Dense Monospace Table */
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-hairline text-ink-subtle text-[11px] font-semibold uppercase bg-surface-2/40">
-                      <th className="py-2.5 px-4">Status</th>
-                      <th className="py-2.5 px-4">Slug</th>
-                      <th className="py-2.5 px-4">Method</th>
-                      <th className="py-2.5 px-4">Code</th>
-                      <th className="py-2.5 px-4">Retry</th>
-                      <th className="py-2.5 px-4 text-right">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-hairline font-mono text-[11px]">
+              <div className="flex h-[calc(100vh-250px)] border border-hairline rounded-lg overflow-hidden bg-surface-1">
+                {/* Left Sidebar: Delivery List */}
+                <div className="w-1/3 min-w-[300px] border-r border-hairline flex flex-col bg-surface-1">
+                  <div className="p-3 border-b border-hairline bg-surface-2 flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-ink uppercase tracking-wider">Deliveries</h3>
+                    <span className="text-[10px] text-ink-tertiary">{logs.length} events</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y divide-hairline">
                     {logs.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="py-8 text-center text-ink-tertiary">
-                          No webhook payloads ingested yet.
-                        </td>
-                      </tr>
+                      <div className="p-8 text-center text-ink-tertiary text-xs">
+                        No webhook payloads ingested yet.
+                      </div>
                     ) : (
                       logs.map((log) => {
                         const date = new Date(log.created_at);
@@ -3334,50 +3446,132 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                         const ep = endpoints.find(e => e.id === log.endpoint_id);
                         const slugLabel = ep ? ep.slug : "deleted";
 
-                        // Status styles
                         let statusBadge = "";
+                        let icon = "";
                         if (log.delivery_status === "success") {
-                          statusBadge = "bg-emerald-500/10 text-success border-emerald-500/20";
+                          statusBadge = "text-success bg-emerald-500/10";
+                          icon = "●";
                         } else if (log.delivery_status === "failed") {
-                          statusBadge = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                          statusBadge = "text-amber-400 bg-amber-500/10";
+                          icon = "▲";
                         } else if (log.delivery_status === "dropped") {
-                          statusBadge = "bg-red-500/10 text-red-400 border-red-500/20";
+                          statusBadge = "text-red-400 bg-red-500/10";
+                          icon = "⨯";
                         } else {
-                          statusBadge = "bg-blue-500/10 text-blue-400 border-blue-500/20";
+                          statusBadge = "text-blue-400 bg-blue-500/10";
+                          icon = "⟳";
                         }
 
                         return (
-                          <tr 
+                          <div
                             key={log.id}
                             onClick={() => setSelectedLog(log)}
-                            className={`hover:bg-surface-2/30 cursor-pointer transition-colors duration-100 ${
-                              selectedLog?.id === log.id ? "bg-surface-2/50" : ""
+                            className={`p-3 hover:bg-surface-2/50 cursor-pointer transition-colors duration-100 flex flex-col space-y-1 ${
+                              selectedLog?.id === log.id ? "bg-surface-2" : ""
                             }`}
                           >
-                            <td className="py-2 px-4">
-                              <span className={`px-2 py-0.5 rounded-full border text-[9px] font-semibold uppercase ${statusBadge}`}>
-                                {log.delivery_status}
-                              </span>
-                            </td>
-                            <td className="py-2 px-4 text-ink-muted">{slugLabel}</td>
-                            <td className="py-2 px-4 text-ink-tertiary">POST</td>
-                            <td className="py-2 px-4">
-                              {log.response_code ? (
-                                <span className={log.response_code >= 200 && log.response_code < 300 ? "text-success" : "text-red-400"}>
-                                  {log.response_code}
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-center space-x-2">
+                                <span className={`text-[10px] w-4 h-4 flex items-center justify-center rounded-full ${statusBadge}`}>
+                                  {icon}
                                 </span>
-                              ) : (
-                                <span className="text-ink-tertiary">—</span>
+                                <span className="text-[11px] font-mono text-ink-muted truncate max-w-[150px]">/p/{slugLabel}</span>
+                              </div>
+                              <span className="text-[10px] text-ink-tertiary">{timeStr}</span>
+                            </div>
+                            <div className="flex justify-between items-center pl-6">
+                              <span className="text-[10px] text-ink-tertiary uppercase">
+                                {log.response_code ? `HTTP ${log.response_code}` : "Pending"}
+                              </span>
+                              {log.retry_count > 0 && (
+                                <span className="text-[9px] bg-surface-3 px-1.5 py-0.5 rounded text-ink-tertiary">
+                                  Retry {log.retry_count}
+                                </span>
                               )}
-                            </td>
-                            <td className="py-2 px-4 text-ink-muted">x{log.retry_count}</td>
-                            <td className="py-2 px-4 text-right text-ink-tertiary">{timeStr}</td>
-                          </tr>
+                            </div>
+                          </div>
                         );
                       })
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+
+                {/* Right Pane: Inspector */}
+                <div className="flex-1 flex flex-col bg-surface-1 overflow-hidden">
+                  {!selectedLog ? (
+                    <div className="flex-1 flex items-center justify-center text-ink-tertiary flex-col space-y-4">
+                      <Terminal className="w-8 h-8 opacity-20" />
+                      <span className="text-xs">Select a delivery from the sidebar to inspect its payload.</span>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Pane Header */}
+                      <div className="p-4 border-b border-hairline bg-surface-2 flex items-center justify-between shrink-0">
+                        <div className="flex items-center space-x-3">
+                          <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold uppercase ${
+                            selectedLog.delivery_status === "success"
+                              ? "bg-emerald-500/10 text-success border-emerald-500/20"
+                              : selectedLog.delivery_status === "failed"
+                                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                : "bg-red-500/10 text-red-400 border-red-500/20"
+                          }`}>
+                            {selectedLog.delivery_status}
+                          </span>
+                          <span className="text-xs font-mono text-ink-subtle">{selectedLog.id}</span>
+                        </div>
+                        <button
+                          onClick={() => handleRetryLog(selectedLog.endpoint_id, selectedLog.id)}
+                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink text-[11px] font-semibold border border-primary-focus/50 transition-colors"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Retry Delivery</span>
+                        </button>
+                      </div>
+
+                      {/* Scrollable Payload/Headers */}
+                      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        {/* Error Alert */}
+                        {selectedLog.error_message && (
+                          <div className="p-4 bg-red-950/20 border border-red-900/40 rounded-lg space-y-1">
+                            <h4 className="text-xs font-semibold text-red-400 uppercase tracking-wider">
+                              Error Details
+                            </h4>
+                            <p className="text-xs text-red-300 font-mono leading-relaxed break-words whitespace-pre-wrap">
+                              {selectedLog.error_message}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Headers */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">Headers</h4>
+                          <div className="bg-surface-2 border border-hairline rounded p-4 font-mono text-[11px] text-ink-subtle overflow-x-auto">
+                            {Object.entries(selectedLog.headers_json).map(([k, v]) => (
+                              <div key={k} className="flex mb-1">
+                                <span className="text-ink min-w-[150px] font-medium">{k}:</span>
+                                <span className="truncate max-w-[300px]" title={v as string}>{v as string}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Payload */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">JSON Payload</h4>
+                          <pre className="bg-surface-2 border border-hairline rounded p-4 font-mono text-[11px] text-ink-subtle overflow-x-auto whitespace-pre-wrap">
+                            {(() => {
+                              try {
+                                return JSON.stringify(JSON.parse(selectedLog.payload_string), null, 2);
+                              } catch {
+                                return selectedLog.payload_string;
+                              }
+                            })()}
+                          </pre>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -3477,112 +3671,6 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
         )}
       </main>
 
-      {/* 3. Slide-out drawer inspect panel (From Right) */}
-      <div 
-        className={`fixed top-0 right-0 h-full w-[500px] bg-surface-1 border-l border-hairline z-50 transform transition-transform duration-200 ease-in-out shadow-2xl flex flex-col ${
-          selectedLog ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        {selectedLog && (
-          <>
-            {/* Drawer Header */}
-            <div className="h-[56px] border-b border-hairline bg-surface-2 flex items-center justify-between px-6 shrink-0">
-              <div className="flex items-center space-x-2">
-                <Terminal className="w-4 h-4 text-primary" />
-                <span className="font-semibold text-sm text-ink">Payload Inspector</span>
-              </div>
-              <button 
-                onClick={() => setSelectedLog(null)}
-                className="p-1 rounded bg-surface-1 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors duration-150"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Drawer Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              
-              {/* Delivery Stats Box */}
-              <div className="bg-surface-2 border border-hairline rounded-lg p-4 font-mono text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-ink-subtle">Log Event ID:</span>
-                  <span className="text-ink truncate max-w-[200px]">{selectedLog.id}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-subtle">Status:</span>
-                  <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold uppercase ${
-                    selectedLog.delivery_status === "success" 
-                      ? "bg-emerald-500/10 text-success border-emerald-500/20" 
-                      : selectedLog.delivery_status === "failed" 
-                        ? "bg-amber-500/10 text-amber-400 border-amber-500/20" 
-                        : "bg-red-500/10 text-red-400 border-red-500/20"
-                  }`}>
-                    {selectedLog.delivery_status}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-subtle">HTTP Response Code:</span>
-                  <span className={selectedLog.response_code && selectedLog.response_code >= 200 && selectedLog.response_code < 300 ? "text-success" : "text-red-400"}>
-                    {selectedLog.response_code || "— (No Response)"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-subtle">Retry Loops:</span>
-                  <span className="text-ink">Attempt {selectedLog.retry_count} / 10</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-subtle">Delivery Time:</span>
-                  <span className="text-ink">{new Date(selectedLog.created_at).toUTCString()}</span>
-                </div>
-              </div>
-
-              {/* Error messages if any */}
-              {selectedLog.error_message && (
-                <div className="p-4 bg-red-950/20 border border-red-900/40 rounded-lg space-y-1">
-                  <h4 className="text-xs font-semibold text-red-400 uppercase tracking-wider">
-                    Error Log / Retry Info
-                  </h4>
-                  <p className="text-xs text-red-300 font-mono leading-relaxed">
-                    {selectedLog.error_message}
-                  </p>
-                </div>
-              )}
-
-              {/* Headers JSON Section */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-ink-subtle uppercase tracking-wider">
-                  Request Headers
-                </h4>
-                <div className="bg-canvas border border-hairline rounded-lg p-4 max-h-[200px] overflow-y-auto font-mono text-[11px] leading-relaxed text-emerald-400">
-                  <pre className="whitespace-pre-wrap">
-                    {JSON.stringify(selectedLog.headers_json, null, 2)}
-                  </pre>
-                </div>
-              </div>
-
-              {/* Payload Raw Section */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-ink-subtle uppercase tracking-wider">
-                  Ingested Body String ( cryptographic preserve )
-                </h4>
-                <div className="bg-canvas border border-hairline rounded-lg p-4 overflow-x-auto font-mono text-[11px] leading-relaxed text-blue-300">
-                  <pre className="whitespace-pre-wrap">
-                    {(() => {
-                      try {
-                        const parsed = JSON.parse(selectedLog.payload_string);
-                        return JSON.stringify(parsed, null, 2);
-                      } catch {
-                        return selectedLog.payload_string;
-                      }
-                    })()}
-                  </pre>
-                </div>
-              </div>
-
-            </div>
-          </>
-        )}
-      </div>
 
       {/* 4. Slide-out drawer inspect panel for Issues (From Right) */}
       <div 
@@ -3673,13 +3761,65 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                     ))}
                   </select>
                 </div>
+
+                {/* Tags UI */}
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-ink-subtle">Cycle (Sprint):</span>
+                  <select
+                    value={selectedIssue.cycle_id || ''}
+                    onChange={(e) => handleUpdateIssue(selectedIssue.id, { cycle_id: e.target.value === '' ? undefined : e.target.value })}
+                    className="bg-surface-3 border border-hairline rounded px-2 py-1 text-sm focus:outline-none focus:border-primary text-ink"
+                  >
+                    <option value="">Unassigned</option>
+                    {cycles.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex justify-between items-start pt-2">
+                  <span className="text-ink-subtle mt-1">Tags / Labels:</span>
+                  <div className="flex flex-col space-y-2 w-48">
+                    {selectedIssue.tags && selectedIssue.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {selectedIssue.tags.map(tag => {
+                          const colors = ['bg-rose-500/10 text-rose-400 border-rose-500/20', 'bg-blue-500/10 text-blue-400 border-blue-500/20', 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', 'bg-purple-500/10 text-purple-400 border-purple-500/20', 'bg-amber-500/10 text-amber-400 border-amber-500/20', 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'];
+                          const colorClass = colors[tag.charCodeAt(0) % colors.length];
+                          return (
+                            <span key={tag} className={`flex items-center text-[9px] px-1.5 py-0.5 rounded border font-medium uppercase tracking-wider cursor-pointer hover:opacity-80 transition-opacity ${colorClass}`} onClick={() => {
+                              const newTags = selectedIssue.tags?.filter(t => t !== tag) || [];
+                              handleUpdateIssue(selectedIssue.id, { tags: newTags });
+                            }} title="Click to remove">
+                              {tag} &times;
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <input 
+                      type="text" 
+                      placeholder="Add tag and press Enter..." 
+                      className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary w-full"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = e.currentTarget.value.trim().toLowerCase().replace(/\s+/g, '-');
+                          if (val && (!selectedIssue.tags || !selectedIssue.tags.includes(val))) {
+                            const newTags = [...(selectedIssue.tags || []), val];
+                            handleUpdateIssue(selectedIssue.id, { tags: newTags });
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Title & Description */}
               <div className="space-y-2">
                 <h3 className="text-base font-semibold text-ink leading-tight">{selectedIssue.title}</h3>
-                <div className="text-xs text-ink-muted bg-surface-2 border border-hairline rounded p-4 whitespace-pre-wrap font-mono leading-relaxed">
-                  {selectedIssue.description}
+                <div className="text-xs text-ink-muted bg-surface-2 border border-hairline rounded p-4 font-sans leading-relaxed prose prose-sm prose-invert max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedIssue.description || "*No description provided.*"}</ReactMarkdown>
                 </div>
               </div>
 
@@ -3716,7 +3856,7 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                     try {
                       const res = await fetch(`${API_BASE}/api/issues`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionApiKey}` },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${""}` },
                         body: JSON.stringify({
                           title,
                           parent_id: selectedIssue.id,
@@ -3728,7 +3868,7 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                       });
                       if (res.ok) {
                         input.value = '';
-                        fetchIssues();
+                        setIssues([]);
                       }
                     } catch (err) {
                       console.error(err);
@@ -3762,7 +3902,13 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                           <span className="font-semibold text-primary">{c.commenter}</span>
                           <span>{new Date(c.created_at).toLocaleTimeString()}</span>
                         </div>
-                        <p className="text-ink-muted leading-relaxed font-sans">{c.body}</p>
+                        {c.body.startsWith('<') ? (
+                          <div className="text-ink-muted leading-relaxed font-sans prose prose-sm prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: c.body }} />
+                        ) : (
+                          <div className="text-ink-muted leading-relaxed font-sans prose prose-sm prose-invert max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{c.body}</ReactMarkdown>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

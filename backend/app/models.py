@@ -1,3 +1,4 @@
+from datetime import datetime
 import uuid
 from sqlalchemy import Column, String, Boolean, Integer, ForeignKey, Text, DateTime, JSON
 from sqlalchemy.orm import relationship, backref
@@ -104,6 +105,44 @@ class WorkflowStatus(Base):
 
     user = relationship("User", back_populates="workflow_statuses")
 
+
+
+class AutomationRule(Base):
+    __tablename__ = "automation_rules"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    
+    # Condition
+    trigger_type = Column(String(50), nullable=False) # e.g., 'issue.status_changed', 'issue.created'
+    condition_field = Column(String(50), nullable=True) # e.g., 'status'
+    condition_value = Column(String(255), nullable=True) # e.g., 'done'
+    
+    # Action
+    action_type = Column(String(50), nullable=False) # e.g., 'webhook'
+    action_target = Column(Text, nullable=False) # e.g., 'https://slack.com/api/...'
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+
+class Cycle(Base):
+    __tablename__ = "cycles"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+    issues = relationship("Issue", back_populates="cycle")
+
 class Issue(Base):
     __tablename__ = "issues"
 
@@ -111,7 +150,9 @@ class Issue(Base):
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     endpoint_id = Column(String(36), ForeignKey("endpoints.id", ondelete="SET NULL"), nullable=True, index=True)
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
+    cycle_id = Column(String(36), ForeignKey("cycles.id", ondelete="SET NULL"), nullable=True, index=True)
     parent_id = Column(String(36), ForeignKey("issues.id", ondelete="CASCADE"), nullable=True, index=True)
+    tags = Column(JSON, default=list)
     issue_type = Column(String(50), default="incident", nullable=False) 
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
@@ -126,6 +167,7 @@ class Issue(Base):
     user = relationship("User", back_populates="issues")
     endpoint = relationship("Endpoint")
     project = relationship("Project", back_populates="issues")
+    cycle = relationship("Cycle", back_populates="issues")
     comments = relationship("IssueComment", back_populates="issue", cascade="all, delete-orphan")
     custom_values = relationship("IssueCustomValue", back_populates="issue", cascade="all, delete-orphan")
     sub_issues = relationship("Issue", backref=backref("parent", remote_side=[id]), cascade="all, delete-orphan")

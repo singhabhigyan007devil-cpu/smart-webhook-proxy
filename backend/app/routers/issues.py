@@ -4,6 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import flag_modified
+from backend.app.automations_engine import evaluate_and_fire_automations
+from fastapi import BackgroundTasks
+
 from typing import List, Optional
 
 from backend.app.db import get_db
@@ -48,6 +52,7 @@ async def list_issues(
 @router.post("/issues", response_model=IssueResponse, status_code=status.HTTP_201_CREATED)
 async def create_issue(
     payload: IssueCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -68,6 +73,7 @@ async def create_issue(
         endpoint_id=payload.endpoint_id,
         project_id=payload.project_id,
         parent_id=payload.parent_id,
+        tags=payload.tags,
         issue_type=payload.issue_type,
         title=payload.title,
         description=payload.description,
@@ -146,12 +152,17 @@ async def create_issue(
     except Exception as ws_err:
         pass
 
+    # Evaluate Automations
+    issue_dict = {c.name: getattr(issue_full, c.name) for c in issue_full.__table__.columns}
+    background_tasks.add_task(evaluate_and_fire_automations, current_user.id, "issue.created", issue_dict)
+    
     return issue_full
 
 @router.patch("/issues/{issue_id}", response_model=IssueResponse)
 async def update_issue(
     issue_id: str,
     payload: IssueUpdate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -169,6 +180,7 @@ async def update_issue(
         )
     
     update_data = payload.model_dump(exclude_unset=True)
+    old_issue_dict = {c.name: getattr(issue, c.name) for c in issue.__table__.columns}
     
     if "project_id" in update_data and update_data["project_id"] is not None:
         proj_query = select(Project).where(Project.id == update_data["project_id"], Project.user_id == current_user.id)
@@ -178,6 +190,8 @@ async def update_issue(
             
     for key, value in update_data.items():
         setattr(issue, key, value)
+        if key == 'tags':
+            flag_modified(issue, 'tags')
         
     await db.commit()
     await db.refresh(issue)
@@ -192,6 +206,10 @@ async def update_issue(
     except Exception as ws_err:
         pass
 
+    # Evaluate Automations
+    issue_dict = {c.name: getattr(issue, c.name) for c in issue.__table__.columns}
+    background_tasks.add_task(evaluate_and_fire_automations, current_user.id, "issue.updated", issue_dict, old_issue_dict)
+    
     return issue
 
 @router.get("/issues/{issue_id}/comments", response_model=List[IssueCommentResponse])

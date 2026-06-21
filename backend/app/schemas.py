@@ -93,6 +93,62 @@ class DashboardMetrics(BaseModel):
 
 
 # --- Project Schemas ---
+
+
+class AutomationRuleBase(BaseModel):
+    name: str
+    trigger_type: str
+    condition_field: Optional[str] = None
+    condition_value: Optional[str] = None
+    action_type: str
+    action_target: str
+    is_active: bool = True
+
+class AutomationRuleCreate(AutomationRuleBase):
+    pass
+
+class AutomationRuleUpdate(BaseModel):
+    name: Optional[str] = None
+    trigger_type: Optional[str] = None
+    condition_field: Optional[str] = None
+    condition_value: Optional[str] = None
+    action_type: Optional[str] = None
+    action_target: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class AutomationRuleResponse(AutomationRuleBase):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CycleBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    is_active: bool = False
+
+class CycleCreate(CycleBase):
+    pass
+
+class CycleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    is_active: Optional[bool] = None
+
+class CycleResponse(CycleBase):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -235,6 +291,8 @@ class IssueCreate(BaseModel):
     endpoint_id: Optional[str] = None
     project_id: Optional[str] = None
     parent_id: Optional[str] = None
+    cycle_id: Optional[str] = None
+    tags: Optional[List[str]] = []
     issue_type: str = "incident"
     title: str
     description: Optional[str] = None
@@ -254,6 +312,8 @@ class IssueUpdate(BaseModel):
     assignee: Optional[str] = None
     project_id: Optional[str] = None
     parent_id: Optional[str] = None
+    cycle_id: Optional[str] = None
+    tags: Optional[List[str]] = None
     completed_at: Optional[datetime] = None
 
 class IssueResponse(BaseModel):
@@ -262,6 +322,8 @@ class IssueResponse(BaseModel):
     endpoint_id: Optional[str] = None
     project_id: Optional[str] = None
     parent_id: Optional[str] = None
+    cycle_id: Optional[str] = None
+    tags: Optional[List[str]] = []
     issue_type: str
     title: str
     description: Optional[str] = None
