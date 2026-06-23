@@ -1,5 +1,6 @@
 "use client";
 import { Settings } from "lucide-react";
+import AuthScreen from "./components/AuthScreen";
 
 import React, { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from 'react-markdown';
@@ -217,7 +218,16 @@ export default function Dashboard() {
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   
   // Issues & Comments State
+    const [showCreateCycleModal, setShowCreateCycleModal] = useState(false);
+  const [cycleName, setCycleName] = useState("");
+  const [cycleStartDate, setCycleStartDate] = useState("");
+  const [cycleEndDate, setCycleEndDate] = useState("");
+  const [isCreatingCycle, setIsCreatingCycle] = useState(false);
+  const [cycleCreateError, setCycleCreateError] = useState("");
+  const [prefilledProjectId, setPrefilledProjectId] = useState<string | null>(null);
+
   const [showCreateIssueModal, setShowCreateIssueModal] = useState(false);
+  const [newIssueDescription, setNewIssueDescription] = useState("");
   const [issueCreateError, setIssueCreateError] = useState<string | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [workflowStatuses, setWorkflowStatuses] = useState<WorkflowStatus[]>([]);
@@ -372,8 +382,11 @@ export default function Dashboard() {
 
   const fetchProfile = async (key: string) => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login?api_key=${key}`, {
-        method: "POST"
+      const response = await fetch(`${API_BASE}/api/auth/me`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${key}`
+        }
       });
       if (response.ok) {
         const data = await response.json();
@@ -601,6 +614,38 @@ export default function Dashboard() {
       fetchAnalytics();
     }
   }, [activeTab, fetchAnalytics, analyticsDaysFilter]);
+
+  const handleCreateCycle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiKey) return;
+    setIsCreatingCycle(true);
+    setCycleCreateError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/cycles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          name: cycleName,
+          start_date: cycleStartDate ? new Date(cycleStartDate).toISOString() : null,
+          end_date: cycleEndDate ? new Date(cycleEndDate).toISOString() : null,
+          is_active: true
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Failed to create cycle");
+      }
+      setShowCreateCycleModal(false);
+      setCycleName("");
+      setCycleStartDate("");
+      setCycleEndDate("");
+      fetchData();
+    } catch (err: any) {
+      setCycleCreateError(err.message);
+    } finally {
+      setIsCreatingCycle(false);
+    }
+  };
 
   const handleUpdateIssue = async (id: string, updates: Partial<Issue>) => {
     if (!apiKey) return;
@@ -1716,6 +1761,27 @@ export default function Dashboard() {
             </select>
           </div>
 
+          {/* Cycle Filter */}
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Cycle:</span>
+            <select
+              value={activeCycleFilter || "all"}
+              onChange={(e) => setActiveCycleFilter(e.target.value === "all" ? null : e.target.value)}
+              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer uppercase"
+            >
+              <option value="all">All Cycles</option>
+              {cycles.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowCreateCycleModal(true)}
+              className="text-[10px] bg-surface-3 hover:bg-surface-2 text-ink-subtle px-2 py-1 rounded transition-colors border border-hairline"
+            >
+              + Cycle
+            </button>
+          </div>
+
           {/* Assignee Filter */}
           <div className="flex items-center space-x-2">
             <span className="text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Assignee:</span>
@@ -2000,6 +2066,68 @@ export default function Dashboard() {
   };
 
   
+    const renderCreateCycleModal = () => {
+    if (!showCreateCycleModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="bg-surface border border-hairline rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-hairline flex justify-between items-center bg-surface-1">
+            <h3 className="font-semibold text-ink">Create New Cycle</h3>
+            <button onClick={() => setShowCreateCycleModal(false)} className="text-ink-subtle hover:text-ink transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <form onSubmit={handleCreateCycle} className="p-5 overflow-y-auto space-y-4">
+            {cycleCreateError && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded text-sm flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{cycleCreateError}</span>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-semibold text-ink mb-1.5 uppercase tracking-wider">Cycle Name</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Cycle 12: June 1st - 14th"
+                value={cycleName}
+                onChange={(e) => setCycleName(e.target.value)}
+                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline px-3 py-2 focus:outline-none focus:border-primary-focus transition-all"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-ink mb-1.5 uppercase tracking-wider">Start Date</label>
+                <input
+                  type="date"
+                  value={cycleStartDate}
+                  onChange={(e) => setCycleStartDate(e.target.value)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline px-3 py-2 focus:outline-none focus:border-primary-focus transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-ink mb-1.5 uppercase tracking-wider">End Date</label>
+                <input
+                  type="date"
+                  value={cycleEndDate}
+                  onChange={(e) => setCycleEndDate(e.target.value)}
+                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline px-3 py-2 focus:outline-none focus:border-primary-focus transition-all"
+                />
+              </div>
+            </div>
+            
+            <div className="pt-4 flex justify-end gap-3 border-t border-hairline mt-4">
+              <button type="button" onClick={() => setShowCreateCycleModal(false)} className="px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2 rounded transition-colors">Cancel</button>
+              <button disabled={isCreatingCycle} type="submit" className="px-4 py-2 bg-primary hover:bg-primary-hover text-ink text-sm font-semibold rounded transition-colors disabled:opacity-50">
+                {isCreatingCycle ? "Creating..." : "Create Cycle"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
   const renderCreateIssueModal = () => {
     if (!showCreateIssueModal) return null;
     return (
@@ -2007,7 +2135,7 @@ export default function Dashboard() {
         <div className="bg-surface border border-hairline rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
           <div className="px-5 py-4 border-b border-hairline flex justify-between items-center bg-surface-1">
             <h3 className="font-semibold text-ink">Create New Issue</h3>
-            <button onClick={() => setShowCreateIssueModal(false)} className="text-ink-subtle hover:text-ink transition-colors">
+            <button onClick={() => { setShowCreateIssueModal(false); setPrefilledProjectId(null); setNewIssueDescription(""); setNewIssueDescription(""); setNewIssueDescription(""); setNewIssueDescription(""); }} className="text-ink-subtle hover:text-ink transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -2023,11 +2151,13 @@ export default function Dashboard() {
               setIssueCreateError(null);
               const formData = new FormData(e.currentTarget);
               const title = formData.get("title") as string;
-              const description = formData.get("description") as string;
+              const description = newIssueDescription;
               const issue_type = formData.get("issue_type") as string;
               const priority = formData.get("priority") as string;
               const story_points = parseInt(formData.get("story_points") as string) || null;
               const status = formData.get("status") as string || "todo";
+              const project_id = prefilledProjectId;
+              const cycle_id = activeCycleFilter;
               
               const payload = {
                 title,
@@ -2035,7 +2165,9 @@ export default function Dashboard() {
                 issue_type,
                 priority,
                 story_points,
-                status
+                status,
+                project_id,
+                cycle_id
               };
               
               try {
@@ -2048,7 +2180,7 @@ export default function Dashboard() {
                   const data = await res.json();
                   throw new Error(data.detail || "Failed to create issue");
                 }
-                setShowCreateIssueModal(false);
+                setShowCreateIssueModal(false); setPrefilledProjectId(null); setNewIssueDescription(""); setNewIssueDescription(""); setNewIssueDescription(""); setNewIssueDescription("");
                 fetchData();
               } catch (err: any) {
                 setIssueCreateError(err.message);
@@ -2061,7 +2193,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-ink-subtle mb-1">Description</label>
-                  <textarea name="description" className="w-full bg-surface-1 border border-hairline rounded px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none transition-colors min-h-[80px]" placeholder="Detailed description..." />
+                  <TipTapEditor value={newIssueDescription} onChange={setNewIssueDescription} apiKey={apiKey || ""} placeholder="Detailed description..." />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -2107,7 +2239,7 @@ export default function Dashboard() {
             </form>
           </div>
           <div className="px-5 py-4 border-t border-hairline flex justify-end gap-3 bg-surface-1">
-            <button onClick={() => setShowCreateIssueModal(false)} className="px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2 rounded transition-colors">Cancel</button>
+            <button onClick={() => { setShowCreateIssueModal(false); setPrefilledProjectId(null); setNewIssueDescription(""); setNewIssueDescription(""); setNewIssueDescription(""); setNewIssueDescription(""); }} className="px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2 rounded transition-colors">Cancel</button>
             <button type="submit" form="create-issue-form" className="px-4 py-2 text-sm font-medium bg-primary text-white rounded hover:bg-primary-focus transition-colors shadow-sm">Create Issue</button>
           </div>
         </div>
@@ -2339,9 +2471,213 @@ const renderCreatePriorityModal = () => {
   };
 
   
+
+  const [isCreatingAutomation, setIsCreatingAutomation] = useState(false);
+
+  const renderAutomationsTab = () => {
+    return (
+      <div className="flex flex-col bg-canvas min-h-[450px] p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-semibold text-ink">Automations</h3>
+            <p className="text-sm text-ink-subtle mt-1">Create rules to trigger actions on specific events.</p>
+          </div>
+          <button 
+            onClick={() => setIsCreatingAutomation(true)}
+            className="px-4 py-2 bg-primary hover:bg-primary-hover text-ink rounded font-medium text-sm transition-colors shadow-sm"
+          >
+            + Create Rule
+          </button>
+        </div>
+
+        <div className="bg-surface-1 border border-hairline rounded-lg overflow-hidden shadow-sm">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-surface-2/30 text-ink-subtle">
+              <tr>
+                <th className="px-5 py-3 font-medium">Name</th>
+                <th className="px-5 py-3 font-medium">Trigger</th>
+                <th className="px-5 py-3 font-medium">Condition</th>
+                <th className="px-5 py-3 font-medium">Action</th>
+                <th className="px-5 py-3 font-medium text-right">Delete</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-hairline">
+              {automations.map(a => (
+                <tr key={a.id} className="hover:bg-surface-2/20 transition-colors">
+                  <td className="px-5 py-3 text-ink font-medium">{a.name}</td>
+                  <td className="px-5 py-3 text-ink-subtle">{a.trigger_type}</td>
+                  <td className="px-5 py-3 text-ink-subtle">{a.condition_field ? `${a.condition_field} == ${a.condition_value}` : "Any"}</td>
+                  <td className="px-5 py-3 text-ink-subtle">
+                    <span className="bg-surface-3 border border-hairline px-2 py-0.5 rounded text-xs text-ink">{a.action_type}</span>
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <button 
+                      className="text-red-400 hover:text-red-500 transition-colors"
+                      onClick={async () => {
+                        await fetch(`${API_BASE}/api/automations/${a.id}`, {
+                          method: "DELETE",
+                          headers: { "Authorization": `Bearer ${apiKey}` }
+                        });
+                        setAutomations(prev => prev.filter(r => r.id !== a.id));
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 inline" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {automations.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-8 text-center text-ink-subtle text-sm">
+                    No automations configured. Create one to get started!
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCreateAutomationModal = () => {
+    if (!isCreatingAutomation) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="bg-surface-1 border border-hairline rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="flex justify-between items-center px-4 py-3 border-b border-hairline bg-surface-2/50">
+            <h3 className="font-semibold text-ink text-sm">Create Automation Rule</h3>
+            <button onClick={() => setIsCreatingAutomation(false)} className="text-ink-subtle hover:text-ink transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-4 overflow-y-auto">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const payload = {
+                name: fd.get("name") as string,
+                trigger_type: fd.get("trigger_type") as string,
+                condition_field: fd.get("condition_field") as string || null,
+                condition_value: fd.get("condition_value") as string || null,
+                action_type: fd.get("action_type") as string,
+                action_target: fd.get("action_target") as string,
+                is_active: true
+              };
+              
+              const res = await fetch(`${API_BASE}/api/automations`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+                body: JSON.stringify(payload)
+              });
+              
+              if (res.ok) {
+                const newRule = await res.json();
+                setAutomations([newRule, ...automations]);
+                setIsCreatingAutomation(false);
+              }
+            }} className="space-y-4">
+              
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-ink-subtle mb-1">Rule Name</label>
+                <input name="name" required placeholder="e.g. Create Bug on Webhook Failure" className="w-full bg-surface-2 border border-hairline rounded px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+              </div>
+              
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-ink-subtle mb-1">Trigger</label>
+                <select name="trigger_type" className="w-full bg-surface-2 border border-hairline rounded px-3 py-2 text-sm focus:border-primary focus:outline-none">
+                  <option value="webhook.failed">When a Webhook Delivery Permanently Fails</option>
+                  <option value="issue.status_changed">When an Issue changes Status</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] uppercase font-semibold text-ink-subtle mb-1">Condition Field (Optional)</label>
+                  <input name="condition_field" placeholder="e.g. status" className="w-full bg-surface-2 border border-hairline rounded px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[11px] uppercase font-semibold text-ink-subtle mb-1">Condition Value (Optional)</label>
+                  <input name="condition_value" placeholder="e.g. done" className="w-full bg-surface-2 border border-hairline rounded px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-ink-subtle mb-1">Action Type</label>
+                <select name="action_type" className="w-full bg-surface-2 border border-hairline rounded px-3 py-2 text-sm focus:border-primary focus:outline-none">
+                  <option value="create_issue">Create an Issue</option>
+                  <option value="alert">Send an Alert</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-ink-subtle mb-1">Action Target</label>
+                <input name="action_target" required placeholder="Project ID (for Issue) or Channel ID (for Alert)" className="w-full bg-surface-2 border border-hairline rounded px-3 py-2 text-sm focus:border-primary focus:outline-none" />
+                <p className="text-[10px] text-ink-subtle mt-1 mt-1">Copy the ID from your Projects or Alert Channels list.</p>
+              </div>
+
+              <div className="pt-2 border-t border-hairline flex justify-end space-x-3">
+                <button type="button" onClick={() => setIsCreatingAutomation(false)} className="px-4 py-2 text-ink-subtle hover:text-ink text-sm font-medium transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-primary hover:bg-primary-hover text-ink rounded font-medium text-sm transition-colors shadow-sm">Save Rule</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderSettingsTab = () => {
     return (
       <div className="flex flex-col bg-canvas min-h-[450px] p-6 space-y-8">
+        {/* User Profile */}
+        <div className="bg-surface-1 border border-hairline rounded-lg overflow-hidden p-6 shadow-sm">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-ink">Your Profile</h3>
+              <p className="text-sm text-ink-subtle mt-1">Manage your account and session.</p>
+            </div>
+            <button 
+              onClick={() => {
+                localStorage.removeItem("hookshield_api_key");
+                setApiKey(null);
+              }}
+              className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded font-medium text-sm transition-colors"
+            >
+              Log Out
+            </button>
+          </div>
+          <div className="flex flex-col space-y-4">
+            <div>
+              <label className="block text-[10px] uppercase font-semibold text-ink-subtle mb-1">Email Address</label>
+              <div className="text-sm text-ink bg-surface-2 px-3 py-2 border border-hairline rounded">{user?.email || "Loading..."}</div>
+            </div>
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-[10px] uppercase font-semibold text-ink-subtle">API Key (Bearer Token)</label>
+                <button 
+                  onClick={async () => {
+                    const res = await fetch(`${API_BASE}/api/auth/rotate-key`, {
+                      method: "POST",
+                      headers: { "Authorization": `Bearer ${apiKey}` }
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setApiKey(data.api_key);
+                      localStorage.setItem("hookshield_api_key", data.api_key);
+                    }
+                  }}
+                  className="text-[10px] px-2 py-1 bg-surface-3 hover:bg-surface-2 border border-hairline rounded transition-colors text-ink"
+                >
+                  Rotate Key
+                </button>
+              </div>
+              <div className="text-sm text-ink bg-surface-2 px-3 py-2 border border-hairline rounded font-mono truncate">{apiKey}</div>
+            </div>
+          </div>
+        </div>
+
         <div>
           <h3 className="text-lg font-semibold text-ink">Project Settings</h3>
           <p className="text-sm text-ink-subtle mt-1">Manage custom fields and workflow statuses for your project.</p>
@@ -2682,7 +3018,28 @@ const renderCreatePriorityModal = () => {
     );
   };
 const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string) => {
-    const colIssues = issues.filter(i => i.status === colStatus);
+        let colIssues = issues.filter(i => i.status === colStatus);
+    if (boardSearchQuery.trim()) {
+      colIssues = colIssues.filter(i => i.title.toLowerCase().includes(boardSearchQuery.toLowerCase()) || (i.description && i.description.toLowerCase().includes(boardSearchQuery.toLowerCase())));
+    }
+    if (boardPriorityFilter !== "all") {
+      if (boardPriorityFilter === "no_priority") {
+        colIssues = colIssues.filter(i => !i.priority);
+      } else {
+        colIssues = colIssues.filter(i => i.priority === boardPriorityFilter);
+      }
+    }
+    if (boardAssigneeFilter !== "all") {
+      if (boardAssigneeFilter === "unassigned") {
+        colIssues = colIssues.filter(i => !i.assignee);
+      } else {
+        colIssues = colIssues.filter(i => i.assignee === boardAssigneeFilter);
+      }
+    }
+    if (activeCycleFilter) {
+      colIssues = colIssues.filter(i => i.cycle_id === activeCycleFilter);
+    }
+
     const isDraggedOver = draggedOverCol === colStatus;
     
     return (
@@ -2790,67 +3147,16 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
   // --- Render Login Screen ---
   if (!apiKey || !user) {
     return (
-      <div className="min-h-screen bg-canvas flex flex-col justify-center items-center px-4 selection:bg-primary selection:text-white">
-        <div className="w-full max-w-md bg-surface-1 border border-hairline rounded-lg p-8 shadow-2xl relative overflow-hidden">
-          {/* Faint subtle grid highlight line at top */}
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
-          
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 rounded-lg bg-surface-2 border border-hairline flex items-center justify-center mb-4 text-primary">
-              <Shield className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink font-sans">Sign in to HookShield</h1>
-            <p className="text-sm text-ink-subtle mt-2 text-center">
-              smart webhook proxy & exponential retry control deck.
-            </p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">
-                Developer Credentials
-              </label>
-              <input 
-                type="text" 
-                placeholder="Enter email to sign up, or API Key to connect" 
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                disabled={isLoading}
-                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none focus:ring-2 focus:ring-primary-focus/50 px-3 py-2 transition-all duration-200"
-              />
-            </div>
-
-            {authError && (
-              <div className="p-3 bg-red-950/20 border border-red-900/50 rounded text-xs text-red-400 flex items-start space-x-2">
-                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            <button 
-              type="submit" 
-              disabled={isLoading}
-              className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-sm py-2 px-4 border border-primary-focus/50 transition-colors duration-150 flex items-center justify-center space-x-2 shadow-sm"
-            >
-              {isLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <span>Launch Deck</span>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-hairline text-center">
-            <span className="text-[11px] text-ink-tertiary">
-              Built on Next.js 15, FastAPI & SQLAlchemy 2.0. Clean architecture verified.
-            </span>
-          </div>
-        </div>
-      </div>
+      <AuthScreen 
+        onLogin={(key, email) => {
+          setApiKey(key);
+          localStorage.setItem("hookshield_api_key", key);
+          fetchProfile(key);
+        }} 
+      />
     );
   }
 
-  // --- Render Dashboard Screen ---
   return (
     <div className="min-h-screen bg-canvas flex flex-col font-sans selection:bg-primary selection:text-white">
       {/* 1. Header (Top Navigation) */}
@@ -3374,6 +3680,40 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
                               />
                             </div>
                           </div>
+                          {/* Epic Child Issues List */}
+                          <div className="space-y-1.5 pt-2 border-t border-hairline mt-2">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-[10px] font-bold tracking-wider text-ink-subtle uppercase">Issues</span>
+                              <button
+                                onClick={() => {
+                                  setPrefilledProjectId(proj.id);
+                                  setShowCreateIssueModal(true);
+                                }}
+                                className="text-[9px] bg-surface-2 hover:bg-surface-3 text-ink px-1.5 py-0.5 rounded border border-hairline flex items-center gap-1 transition-colors font-semibold"
+                              >
+                                + Add Issue
+                              </button>
+                            </div>
+                            {projIssues.length === 0 ? (
+                              <div className="text-[10px] text-ink-tertiary italic py-1">No issues assigned to this epic.</div>
+                            ) : (
+                              <div className="flex flex-col space-y-1 max-h-40 overflow-y-auto pr-1">
+                                {projIssues.map(issue => (
+                                  <div
+                                    key={issue.id}
+                                    onClick={() => setSelectedIssue(issue)}
+                                    className="flex justify-between items-center text-[10px] bg-surface-2 hover:bg-surface-3 p-1.5 rounded border border-transparent hover:border-hairline cursor-pointer transition-colors"
+                                  >
+                                    <div className="flex items-center gap-2 truncate">
+                                      <span className={`w-1.5 h-1.5 rounded-full ${issue.status === 'done' ? 'bg-emerald-500' : issue.status === 'in_progress' ? 'bg-blue-500' : 'bg-amber-500'}`}></span>
+                                      <span className={`font-medium truncate ${issue.status === 'done' ? 'line-through text-ink-tertiary' : 'text-ink'}`}>{issue.title}</span>
+                                    </div>
+                                    <span className="text-[9px] uppercase font-semibold text-ink-muted shrink-0">{issue.status.replace('_', ' ')}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
 
                           <div className="flex justify-between items-center pt-1">
                             <button 
@@ -3421,6 +3761,10 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
             ) : activeTab === "analytics" ? (
               <div>
                 {renderAnalyticsTab()}
+              </div>
+            ) : activeTab === "automations" ? (
+              <div>
+                {renderAutomationsTab()}
               </div>
             ) : activeTab === "settings" ? (
               <div>
@@ -3819,7 +4163,11 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
               <div className="space-y-2">
                 <h3 className="text-base font-semibold text-ink leading-tight">{selectedIssue.title}</h3>
                 <div className="text-xs text-ink-muted bg-surface-2 border border-hairline rounded p-4 font-sans leading-relaxed prose prose-sm prose-invert max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedIssue.description || "*No description provided.*"}</ReactMarkdown>
+                  {selectedIssue.description && selectedIssue.description.startsWith('<') ? (
+                          <div className="prose prose-sm prose-invert max-w-none text-ink" dangerouslySetInnerHTML={{ __html: selectedIssue.description }} />
+                        ) : (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedIssue.description || "*No description provided.*"}</ReactMarkdown>
+                        )}
                 </div>
               </div>
 
@@ -4304,8 +4652,10 @@ const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string
       )}
 
       {renderCreateChannelModal()}
-      {renderCreateIssueModal()}
+      {renderCreateCycleModal()}
+        {renderCreateIssueModal()}
         {renderCreatePriorityModal()}
+        {renderCreateAutomationModal()}
 
     </div>
   );

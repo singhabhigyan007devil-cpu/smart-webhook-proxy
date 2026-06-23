@@ -59,69 +59,10 @@ async def get_current_user(
         )
     return user
 
-# --- Auth Routes ---
-@router.post("/auth/register", status_code=status.HTTP_201_CREATED)
-async def register_user(email: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == email))
-    existing = result.scalars().first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already registered"
-        )
-    
-    new_user = User(
-        id=str(uuid.uuid4()),
-        email=email,
-        api_key=f"hs_{secrets.token_hex(16)}",
-        tier="free"
-    )
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
-    return {
-        "id": new_user.id,
-        "email": new_user.email,
-        "api_key": new_user.api_key,
-        "tier": new_user.tier
-    }
 
-@router.post("/auth/login")
-async def login_user(api_key: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.api_key == api_key))
-    user = result.scalars().first()
-    if not user:
-        # Local ease of access: if they type email, look up or create. Otherwise, require API key.
-        if "@" in api_key:
-            # Auto login/signup by email for demo simplicity
-            result = await db.execute(select(User).where(User.email == api_key))
-            user = result.scalars().first()
-            if not user:
-                user = User(
-                    id=str(uuid.uuid4()),
-                    email=api_key,
-                    api_key=f"hs_{secrets.token_hex(16)}",
-                    tier="free"
-                )
-                db.add(user)
-                await db.commit()
-                await db.refresh(user)
-            return {
-                "id": user.id,
-                "email": user.email,
-                "api_key": user.api_key,
-                "tier": user.tier
-            }
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key"
-        )
-    return {
-        "id": user.id,
-        "email": user.email,
-        "api_key": user.api_key,
-        "tier": user.tier
-    }
+# --- Auth Routes ---
+# Removed old register_user and login_user endpoints. Auth is now handled by backend/app/routers/auth.py
+
 
 # --- Endpoint CRUD ---
 @router.post("/endpoints", response_model=EndpointResponse, status_code=status.HTTP_201_CREATED)

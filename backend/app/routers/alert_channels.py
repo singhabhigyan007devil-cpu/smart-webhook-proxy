@@ -200,3 +200,21 @@ async def test_alert_channel(
         )
         
     return {"status": "success", "message": f"Test alert dispatched to {channel.name}"}
+
+
+async def notify_alert_channel(channel: AlertChannel, message: str, source: str = "HookShield Automation"):
+    import httpx
+    if channel.channel_type == "slack":
+        webhook_url = channel.config.get("webhook_url")
+        if webhook_url:
+            async with httpx.AsyncClient() as client:
+                await client.post(webhook_url, json={"text": f"🚨 *{source}*\n{message}"})
+    elif channel.channel_type == "discord":
+        webhook_url = channel.config.get("webhook_url")
+        if webhook_url:
+            async with httpx.AsyncClient() as client:
+                await client.post(webhook_url, json={"content": f"🚨 **{source}**\n{message}"})
+    elif channel.channel_type == "email":
+        recipient_email = channel.config.get("recipient_email")
+        if recipient_email:
+            print(f"[ALERT EMAIL] To: {recipient_email} | Message: {message}")

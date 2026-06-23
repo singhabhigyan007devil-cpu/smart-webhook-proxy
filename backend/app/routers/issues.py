@@ -108,7 +108,7 @@ async def create_issue(
         proj_q2 = select(Project).where(Project.id == payload.project_id)
         proj_r2 = await db.execute(proj_q2)
         project = proj_r2.scalars().first()
-        if project and project.github_repo:
+        if project and getattr(project, "github_repo", None):
             try:
                 # Fire and forget GitHub issue creation
                 async def create_github_issue(pat, repo, title, body):

@@ -10,6 +10,7 @@ class User(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=True)
     api_key = Column(String(255), unique=True, nullable=False, index=True)
     tier = Column(String(50), default="free", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -55,7 +56,7 @@ class WebhookLog(Base):
     error_message = Column(Text, nullable=True)
     event_hash = Column(String(64), nullable=True, index=True)
     latency_ms = Column(Integer, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     endpoint = relationship("Endpoint", back_populates="logs")

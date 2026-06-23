@@ -2,6 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
+import httpx
+from backend.app.models import Issue, AlertChannel, Endpoint
+from backend.app.routers.alert_channels import notify_alert_channel
+
 
 from backend.app.db import get_db
 from backend.app.models import AutomationRule, User
@@ -77,3 +81,49 @@ async def delete_automation(
     await db.delete(rule)
     await db.commit()
     return None
+
+
+async def execute_automations(db: AsyncSession, user_id: str, trigger_type: str, context: dict):
+    """
+    Evaluates and executes active automations for a specific trigger.
+    Context is a dictionary containing relevant data (e.g., {'endpoint_id': '123', 'status_code': 404, 'issue': Issue_Object})
+    """
+    query = select(AutomationRule).where(
+        AutomationRule.user_id == user_id,
+        AutomationRule.is_active == True,
+        AutomationRule.trigger_type == trigger_type
+    )
+    res = await db.execute(query)
+    rules = res.scalars().all()
+
+    for rule in rules:
+        # Check Condition
+        if rule.condition_field and rule.condition_value:
+            actual_value = str(context.get(rule.condition_field, ''))
+            if actual_value != rule.condition_value:
+                continue
+
+        # Execute Action
+        if rule.action_type == 'create_issue':
+            project_id = rule.action_target
+            title = context.get('issue_title', f"Automated Issue from {trigger_type}")
+            description = context.get('issue_description', "Automatically generated issue.")
+            
+            new_issue = Issue(
+                project_id=project_id,
+                user_id=user_id,
+                title=title,
+                description=description,
+                status="todo",
+                priority="high"
+            )
+            db.add(new_issue)
+            await db.commit()
+
+        elif rule.action_type == 'alert':
+            channel_id = rule.action_target
+            channel_res = await db.execute(select(AlertChannel).where(AlertChannel.id == channel_id, AlertChannel.user_id == user_id))
+            channel = channel_res.scalars().first()
+            if channel:
+                message = context.get('alert_message', f"Automation Triggered: {trigger_type}")
+                await notify_alert_channel(channel, message, "Automation Rule")

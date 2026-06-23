@@ -431,3 +431,16 @@ class AnalyticsBurndownPoint(BaseModel):
 
 class AnalyticsBurndownResponse(BaseModel):
     data: List[AnalyticsBurndownPoint]
+
+
+class AuthRegister(BaseModel):
+    email: str
+    password: str
+
+class AuthLogin(BaseModel):
+    email: str
+    password: str
+
+class AuthResponse(BaseModel):
+    api_key: str
+    email: str

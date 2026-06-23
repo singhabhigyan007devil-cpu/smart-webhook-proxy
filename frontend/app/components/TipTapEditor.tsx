@@ -9,9 +9,10 @@ interface TipTapEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  apiKey?: string;
 }
 
-const TipTapEditor: React.FC<TipTapEditorProps> = ({ value, onChange, placeholder }) => {
+const TipTapEditor: React.FC<TipTapEditorProps> = ({ value, onChange, placeholder, apiKey }) => {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -64,10 +65,10 @@ const TipTapEditor: React.FC<TipTapEditorProps> = ({ value, onChange, placeholde
     formData.append('file', file);
     
     // Get token
-    const token = localStorage.getItem('token');
+    const token = apiKey || localStorage.getItem('token');
     
     try {
-      const response = await fetch('/api/upload', {
+      const response = await fetch('http://localhost:8000/api/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

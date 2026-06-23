@@ -3,9 +3,13 @@ from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from backend.app.limiter import limiter
+
 from backend.app.config import settings
 from backend.app.db import init_db, engine
-from backend.app.routers import ingest, worker, endpoints, issues, workflows, projects, alert_channels, severity_priorities, analytics, cycles, uploads, automations
+from backend.app.routers import ingest, worker, endpoints, issues, workflows, projects, alert_channels, severity_priorities, analytics, cycles, uploads, automations, auth
 from backend.app.routers import github
 
 @asynccontextmanager
@@ -31,6 +35,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Apply CORS middleware to enable communication with the Next.js frontend
 app.add_middleware(
     CORSMiddleware,
@@ -50,6 +57,9 @@ app.include_router(projects.router, prefix="/api")
 app.include_router(alert_channels.router, prefix="/api")
 app.include_router(severity_priorities.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
+app.include_router(cycles.router)
+app.include_router(uploads.router)
+app.include_router(auth.router)
 
 
 # Real-Time WebSocket Endpoint
