@@ -248,6 +248,20 @@ async def process_webhook_task(
                 log.error_message = f"Dropped: Max retries ({max_retries_limit}) exceeded. Last error: {error_msg}"
             await db.commit()
 
+            # Execute Automations for Webhook Failed
+            await execute_automations(
+                db, 
+                user_id=endpoint.user_id, 
+                trigger_type='webhook.failed', 
+                context={
+                    'endpoint_id': endpoint_id,
+                    'status_code': status_code,
+                    'issue_title': f"Delivery failed for /p/{endpoint.slug}",
+                    'issue_description': f"Webhook delivery has permanently failed.\n\n**Endpoint:** {endpoint.source_name}\n**Target:** {endpoint.target_url}\n**Reason:** {log.error_message}",
+                    'alert_message': f"Webhook {endpoint.source_name} permanently failed delivery to {endpoint.target_url}."
+                }
+            )
+
             # Auto-create Webhook Issue in the database
             try:
                 issue_res = await db.execute(
