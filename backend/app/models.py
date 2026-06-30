@@ -10,6 +10,7 @@ class User(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, nullable=False, index=True)
     api_key = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=True)
     tier = Column(String(50), default="free", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -192,4 +193,22 @@ class SeverityPriority(Base):
 
     user = relationship("User", back_populates="severity_priorities")
     alert_channel = relationship("AlertChannel")
+
+
+class AutomationRule(Base):
+    __tablename__ = "automation_rules"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    trigger_type = Column(String(100), nullable=False, index=True)  # webhook.failed, issue.updated, etc.
+    condition_field = Column(String(100), nullable=True)
+    condition_value = Column(String(255), nullable=True)
+    action_type = Column(String(100), nullable=False)  # create_issue, webhook, alert
+    action_target = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User")
 

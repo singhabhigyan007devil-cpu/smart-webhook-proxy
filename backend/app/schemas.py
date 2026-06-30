@@ -337,6 +337,50 @@ class SeverityPriorityResponse(SeverityPriorityBase):
 
 
 
+# --- Auth Schemas ---
+class AuthRegister(BaseModel):
+    email: EmailStr
+    password: str
+
+class AuthLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class AuthResponse(BaseModel):
+    api_key: str
+    email: str
+
+
+# --- Automation Rule Schemas ---
+class AutomationRuleBase(BaseModel):
+    name: str
+    trigger_type: str
+    condition_field: Optional[str] = None
+    condition_value: Optional[str] = None
+    action_type: str
+    action_target: str
+    is_active: bool = True
+
+class AutomationRuleCreate(AutomationRuleBase):
+    pass
+
+class AutomationRuleUpdate(BaseModel):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class AutomationRuleResponse(AutomationRuleBase):
+    id: str
+    user_id: str
+    created_at: datetime
+    updated_at: datetime
+
+    @field_serializer('created_at', 'updated_at')
+    def serialize_timestamps(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- Analytics Schemas ---
 class AnalyticsKPIs(BaseModel):
     total_volume: int
@@ -350,3 +394,18 @@ class AnalyticsTimeSeriesPoint(BaseModel):
 
 class AnalyticsTimeSeriesResponse(BaseModel):
     data: List[AnalyticsTimeSeriesPoint]
+
+class AnalyticsVelocityPoint(BaseModel):
+    week: str
+    completed_points: int
+
+class AnalyticsVelocityResponse(BaseModel):
+    data: List[AnalyticsVelocityPoint]
+
+class AnalyticsBurndownPoint(BaseModel):
+    date: str
+    open_issues: int
+    completed_issues: int
+
+class AnalyticsBurndownResponse(BaseModel):
+    data: List[AnalyticsBurndownPoint]

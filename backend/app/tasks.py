@@ -16,7 +16,7 @@ async def execute_local_task_after_delay(delay: float, task_data: Dict[str, Any]
     if delay > 0:
         await asyncio.sleep(delay)
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             # We call the local worker route to process the webhook
             response = await client.post(

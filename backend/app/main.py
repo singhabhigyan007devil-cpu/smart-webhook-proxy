@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from backend.app.config import settings
 from backend.app.db import init_db, engine
-from backend.app.routers import ingest, worker, endpoints, issues, projects, alert_channels, severity_priorities, analytics
+from backend.app.routers import ingest, worker, endpoints, issues, projects, alert_channels, severity_priorities, analytics, automations, auth
 
 import asyncio
 from datetime import datetime, timezone
@@ -80,6 +80,8 @@ app.include_router(projects.router, prefix="/api")
 app.include_router(alert_channels.router, prefix="/api")
 app.include_router(severity_priorities.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
+app.include_router(automations.router)
+app.include_router(auth.router)
 
 
 # Real-Time WebSocket Endpoint

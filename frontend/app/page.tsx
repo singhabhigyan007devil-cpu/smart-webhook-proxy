@@ -993,14 +993,12 @@ export default function Dashboard() {
     };
   }, [apiKey, fetchData]);
 
-  // Polling loop
+  // Load initial data
   useEffect(() => {
     if (apiKey) {
       setTimeout(() => {
         fetchData();
       }, 0);
-      const interval = setInterval(fetchData, 3000); // Poll every 3s
-      return () => clearInterval(interval);
     }
   }, [apiKey, fetchData]);
 

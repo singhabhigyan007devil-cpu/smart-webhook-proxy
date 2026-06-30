@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func, desc, case
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from backend.app.db import get_db
 from backend.app.models import User, Endpoint, WebhookLog
@@ -63,6 +64,17 @@ async def get_current_user(
 # --- Auth Routes ---
 # Removed old register_user and login_user endpoints. Auth is now handled by backend/app/routers/auth.py
 
+def is_self_referential(url: str) -> bool:
+    if not url: return False
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if host in ("localhost", "127.0.0.1", "0.0.0.0", "hookshield.io"):
+            return True
+        return False
+    except Exception:
+        return True
+
 
 # --- Endpoint CRUD ---
 @router.post("/endpoints", response_model=EndpointResponse, status_code=status.HTTP_201_CREATED)
@@ -74,6 +86,12 @@ async def create_endpoint(
     # Auto-generate slug and secret if not provided
     slug = payload.slug or secrets.token_urlsafe(8).lower()
     secret_token = payload.secret_token or f"whsec_{secrets.token_hex(12)}"
+    
+    if is_self_referential(payload.target_url):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target URL cannot point to localhost or the proxy itself."
+        )
     
     # Check slug uniqueness
     result = await db.execute(select(Endpoint).where(Endpoint.slug == slug))
@@ -137,6 +155,11 @@ async def update_endpoint(
     if payload.source_name is not None:
         endpoint.source_name = payload.source_name
     if payload.target_url is not None:
+        if is_self_referential(payload.target_url):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Target URL cannot point to localhost or the proxy itself."
+            )
         endpoint.target_url = payload.target_url
     if payload.secret_token is not None:
         endpoint.secret_token = payload.secret_token
