@@ -151,7 +151,9 @@ async def create_endpoint(
         alert_webhook_url=payload.alert_webhook_url,
         auth_headers=payload.auth_headers,
         max_retries=payload.max_retries,
-        backoff_base=payload.backoff_base
+        backoff_base=payload.backoff_base,
+        idempotency_strategy=payload.idempotency_strategy,
+        idempotency_ttl=payload.idempotency_ttl
     )
     db.add(endpoint)
     await db.commit()
@@ -209,6 +211,10 @@ async def update_endpoint(
         endpoint.max_retries = payload.max_retries
     if payload.backoff_base is not None:
         endpoint.backoff_base = payload.backoff_base
+    if payload.idempotency_strategy is not None:
+        endpoint.idempotency_strategy = payload.idempotency_strategy
+    if payload.idempotency_ttl is not None:
+        endpoint.idempotency_ttl = payload.idempotency_ttl
 
             
     await db.commit()

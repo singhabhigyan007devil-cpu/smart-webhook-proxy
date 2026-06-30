@@ -13,7 +13,6 @@ import {
   PowerOff, 
   Search, 
   X, 
-  ChevronRight, 
   Copy, 
   Check, 
   LogOut,
@@ -21,9 +20,13 @@ import {
   Keyboard,
   Compass,
   Bell,
-  BarChart2
+  BarChart2,
+  Settings,
+  Bug,
+  CheckSquare,
+  Bookmark
 } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 
 const API_BASE = "http://localhost:8000";
 
@@ -48,19 +51,50 @@ interface Endpoint {
   auth_headers?: Record<string, string>;
   max_retries?: number;
   backoff_base?: number;
+  idempotency_strategy?: string;
+  idempotency_ttl?: number;
+}
+
+interface WorkflowStatus {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  order_index: number;
+  created_at: string;
+}
+
+interface CustomField {
+  id: string;
+  user_id: string;
+  name: string;
+  field_type: "text" | "number" | "date";
+  created_at: string;
+}
+
+interface IssueCustomValue {
+  id: string;
+  issue_id: string;
+  field_id: string;
+  value_text: string;
+  created_at: string;
 }
 
 interface Incident {
   id: string;
-  endpoint_id: string;
+  endpoint_id: string | null;
   project_id: string | null;
+  issue_type: "incident" | "story" | "task" | "bug";
   title: string;
   description: string | null;
-  status: "todo" | "in_progress" | "done";
+  status: string;
   priority: string;
+  story_points: number | null;
   assignee: string | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
+  custom_values: IssueCustomValue[];
 }
 
 interface Project {
@@ -85,7 +119,7 @@ interface ProjectMilestone {
 
 interface IncidentComment {
   id: string;
-  incident_id: string;
+  issue_id: string;
   commenter: string;
   body: string;
   created_at: string;
@@ -177,7 +211,7 @@ export default function Dashboard() {
   const [newCommentBody, setNewCommentBody] = useState("");
   const [commenterName, setCommenterName] = useState("");
   const [assigneeInput, setAssigneeInput] = useState("");
-  const [draggedOverCol, setDraggedOverCol] = useState<"todo" | "in_progress" | "done" | null>(null);
+  const [draggedOverCol, setDraggedOverCol] = useState<string | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   
   // Board Filters
@@ -187,7 +221,6 @@ export default function Dashboard() {
   
   // Projects & Roadmaps States
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -208,7 +241,22 @@ export default function Dashboard() {
 
   // Roadmap/Timeline View State
   const [roadmapViewMode, setRoadmapViewMode] = useState<"list" | "timeline">("list");
-  
+  // Custom Workflow Statuses & Custom Fields States
+  const [workflowStatuses, setWorkflowStatuses] = useState<WorkflowStatus[]>([]);
+  const [showCreateStatusModal, setShowCreateStatusModal] = useState(false);
+  const [newStatusName, setNewStatusName] = useState("");
+  const [newStatusColor, setNewStatusColor] = useState("#718096");
+  const [newStatusOrderIndex, setNewStatusOrderIndex] = useState(0);
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [statusCreateError, setStatusCreateError] = useState("");
+
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [showCreateFieldModal, setShowCreateFieldModal] = useState(false);
+  const [newFieldName, setNewFieldName] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"text" | "number" | "date">("text");
+  const [isSavingField, setIsSavingField] = useState(false);
+  const [fieldCreateError, setFieldCreateError] = useState("");
+
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<"logs" | "board" | "roadmaps" | "alerts" | "analytics">("logs");
 
@@ -256,19 +304,26 @@ export default function Dashboard() {
   const [authHeadersInput, setAuthHeadersInput] = useState("");
   const [maxRetriesInput, setMaxRetriesInput] = useState("");
   const [backoffBaseInput, setBackoffBaseInput] = useState("");
+  const [idempotencyStrategyInput, setIdempotencyStrategyInput] = useState("auto");
+  const [idempotencyTTLInput, setIdempotencyTTLInput] = useState("24");
   const [createError, setCreateError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  // Load Auth state
-  useEffect(() => {
-    const savedKey = localStorage.getItem("hookshield_api_key");
-    if (savedKey) {
-      setApiKey(savedKey);
-      fetchProfile(savedKey);
-    }
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem("hookshield_api_key");
+    setApiKey(null);
+    setUser(null);
+    setEndpoints([]);
+    setLogs([]);
+    setIncidents([]);
+    setAlertChannels([]);
+    setSeverityPriorities([]);
+    setSelectedEndpoint(null);
+    setSelectedLog(null);
+    setSelectedIncident(null);
   }, []);
 
-  const fetchProfile = async (key: string) => {
+  const fetchProfile = useCallback(async (key: string) => {
     try {
       const response = await fetch(`${API_BASE}/api/auth/login?api_key=${key}`, {
         method: "POST"
@@ -283,7 +338,18 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Failed to load user session", err);
     }
-  };
+  }, [handleLogout]);
+
+  // Load Auth state
+  useEffect(() => {
+    const savedKey = localStorage.getItem("hookshield_api_key");
+    if (savedKey) {
+      setTimeout(() => {
+        setApiKey(savedKey);
+        fetchProfile(savedKey);
+      }, 0);
+    }
+  }, [fetchProfile]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,25 +371,11 @@ export default function Dashboard() {
         const errData = await response.json();
         setAuthError(errData.detail || "Authentication failed. Enter email to register or paste your API key.");
       }
-    } catch (err) {
+    } catch {
       setAuthError("Unable to connect to backend service. Please check that FastAPI is running.");
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("hookshield_api_key");
-    setApiKey(null);
-    setUser(null);
-    setEndpoints([]);
-    setLogs([]);
-    setIncidents([]);
-    setAlertChannels([]);
-    setSeverityPriorities([]);
-    setSelectedEndpoint(null);
-    setSelectedLog(null);
-    setSelectedIncident(null);
   };
 
   const getPriorityStyle = (priorityName: string) => {
@@ -387,8 +439,8 @@ export default function Dashboard() {
         setLogs(data);
       }
 
-      // 4. Fetch Webhook Incidents
-      const incRes = await fetch(`${API_BASE}/api/incidents`, { headers });
+      // 4. Fetch Webhook Issues
+      const incRes = await fetch(`${API_BASE}/api/issues`, { headers });
       if (incRes.ok) {
         const data = await incRes.json();
         setIncidents(data);
@@ -421,6 +473,20 @@ export default function Dashboard() {
       if (prioritiesRes.ok) {
         const data = await prioritiesRes.json();
         setSeverityPriorities(data);
+      }
+
+      // 8. Fetch Workflow Statuses
+      const wsRes = await fetch(`${API_BASE}/api/workflow-statuses`, { headers });
+      if (wsRes.ok) {
+        const data = await wsRes.json();
+        setWorkflowStatuses(data);
+      }
+
+      // 9. Fetch Custom Fields
+      const cfRes = await fetch(`${API_BASE}/api/custom-fields`, { headers });
+      if (cfRes.ok) {
+        const data = await cfRes.json();
+        setCustomFields(data);
       }
     } catch (err) {
       console.error("Error polling backend dashboard data", err);
@@ -456,7 +522,7 @@ export default function Dashboard() {
     if (!apiKey) return;
     try {
       const headers = { "Authorization": `Bearer ${apiKey}` };
-      const response = await fetch(`${API_BASE}/api/incidents/${incidentId}/comments`, { headers });
+      const response = await fetch(`${API_BASE}/api/issues/${incidentId}/comments`, { headers });
       if (response.ok) {
         const data = await response.json();
         setIncidentComments(data);
@@ -468,23 +534,29 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (selectedIncident) {
-      fetchIncidentComments(selectedIncident.id);
-      setAssigneeInput(selectedIncident.assignee || "");
+      setTimeout(() => {
+        fetchIncidentComments(selectedIncident.id);
+        setAssigneeInput(selectedIncident.assignee || "");
+      }, 0);
     } else {
-      setIncidentComments([]);
+      setTimeout(() => {
+        setIncidentComments([]);
+      }, 0);
     }
   }, [selectedIncident, fetchIncidentComments]);
 
   useEffect(() => {
     if (activeTab === "analytics") {
-      fetchAnalytics();
+      setTimeout(() => {
+        fetchAnalytics();
+      }, 0);
     }
   }, [activeTab, fetchAnalytics, analyticsDaysFilter]);
 
   const handleUpdateIncident = async (id: string, updates: Partial<Incident>) => {
     if (!apiKey) return;
     try {
-      const response = await fetch(`${API_BASE}/api/incidents/${id}`, {
+      const response = await fetch(`${API_BASE}/api/issues/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -510,7 +582,7 @@ export default function Dashboard() {
     if (!selectedIncident || !newCommentBody.trim()) return;
     const name = commenterName.trim() || user?.email.split("@")[0] || "developer";
     try {
-      const response = await fetch(`${API_BASE}/api/incidents/${selectedIncident.id}/comments`, {
+      const response = await fetch(`${API_BASE}/api/issues/${selectedIncident.id}/comments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -527,6 +599,128 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Failed to post comment", err);
+    }
+  };
+
+  const handleCreateWorkflowStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStatusName.trim() || !apiKey) return;
+    setIsSavingStatus(true);
+    setStatusCreateError("");
+    try {
+      const response = await fetch(`${API_BASE}/api/workflow-statuses`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          name: newStatusName.trim(),
+          color: newStatusColor,
+          order_index: newStatusOrderIndex
+        })
+      });
+      if (response.ok) {
+        setNewStatusName("");
+        setNewStatusColor("#718096");
+        setNewStatusOrderIndex(0);
+        setShowCreateStatusModal(false);
+        fetchData();
+      } else {
+        const errData = await response.json();
+        setStatusCreateError(errData.detail || "Failed to create workflow status");
+      }
+    } catch {
+      setStatusCreateError("Network error occurred");
+    } finally {
+      setIsSavingStatus(false);
+    }
+  };
+
+  const handleDeleteWorkflowStatus = async (statusId: string) => {
+    if (!apiKey) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/workflow-statuses/${statusId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`
+        }
+      });
+      if (response.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to delete workflow status", err);
+    }
+  };
+
+  const handleCreateCustomField = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFieldName.trim() || !apiKey) return;
+    setIsSavingField(true);
+    setFieldCreateError("");
+    try {
+      const response = await fetch(`${API_BASE}/api/custom-fields`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          name: newFieldName.trim(),
+          field_type: newFieldType
+        })
+      });
+      if (response.ok) {
+        setNewFieldName("");
+        setNewFieldType("text");
+        setShowCreateFieldModal(false);
+        fetchData();
+      } else {
+        const errData = await response.json();
+        setFieldCreateError(errData.detail || "Failed to create custom field");
+      }
+    } catch {
+      setFieldCreateError("Network error occurred");
+    } finally {
+      setIsSavingField(false);
+    }
+  };
+
+  const handleDeleteCustomField = async (fieldId: string) => {
+    if (!apiKey) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/custom-fields/${fieldId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`
+        }
+      });
+      if (response.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to delete custom field", err);
+    }
+  };
+
+  const handleSaveCustomFieldValue = async (issueId: string, fieldId: string, valText: string) => {
+    if (!apiKey) return;
+    try {
+      await fetch(`${API_BASE}/api/issues/${issueId}/custom-values`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          field_id: fieldId,
+          value_text: valText
+        })
+      });
+      fetchData();
+    } catch (err) {
+      console.error("Failed to save custom field value", err);
     }
   };
 
@@ -625,7 +819,7 @@ export default function Dashboard() {
           const message = JSON.parse(event.data);
           console.log("[WS] Received real-time event:", message.event, message.data);
           
-          if (message.event === "incident_created") {
+          if (message.event === "issue_created") {
             const newIncident = message.data;
             setIncidents(prev => {
               if (prev.some(i => i.id === newIncident.id)) return prev;
@@ -634,7 +828,7 @@ export default function Dashboard() {
             fetchData();
           } 
           
-          else if (message.event === "incident_updated") {
+          else if (message.event === "issue_updated") {
             const updated = message.data;
             setIncidents(prev => prev.map(i => i.id === updated.id ? updated : i));
             setSelectedIncident(prev => {
@@ -725,7 +919,7 @@ export default function Dashboard() {
           else if (message.event === "comment_created") {
             const newComment = message.data;
             setSelectedIncident(prevSelected => {
-              if (prevSelected?.id === newComment.incident_id) {
+              if (prevSelected?.id === newComment.issue_id) {
                 setIncidentComments(prevComments => {
                   if (prevComments.some(c => c.id === newComment.id)) return prevComments;
                   return [...prevComments, newComment];
@@ -733,6 +927,37 @@ export default function Dashboard() {
               }
               return prevSelected;
             });
+          }
+          else if (message.event === "workflow_status_created") {
+            const newStatus = message.data;
+            setWorkflowStatuses(prev => {
+              if (prev.some(s => s.id === newStatus.id)) return prev;
+              return [...prev, newStatus].sort((a, b) => a.order_index - b.order_index);
+            });
+            fetchData();
+          }
+          else if (message.event === "workflow_status_updated") {
+            const updated = message.data;
+            setWorkflowStatuses(prev => prev.map(s => s.id === updated.id ? updated : s).sort((a, b) => a.order_index - b.order_index));
+            fetchData();
+          }
+          else if (message.event === "workflow_status_deleted") {
+            const { id } = message.data;
+            setWorkflowStatuses(prev => prev.filter(s => s.id !== id));
+            fetchData();
+          }
+          else if (message.event === "custom_field_created") {
+            const newField = message.data;
+            setCustomFields(prev => {
+              if (prev.some(f => f.id === newField.id)) return prev;
+              return [...prev, newField];
+            });
+            fetchData();
+          }
+          else if (message.event === "custom_field_deleted") {
+            const { id } = message.data;
+            setCustomFields(prev => prev.filter(f => f.id !== id));
+            fetchData();
           }
         } catch (err) {
           console.error("[WS ERROR] Error parsing event payload:", err);
@@ -771,7 +996,9 @@ export default function Dashboard() {
   // Polling loop
   useEffect(() => {
     if (apiKey) {
-      fetchData();
+      setTimeout(() => {
+        fetchData();
+      }, 0);
       const interval = setInterval(fetchData, 3000); // Poll every 3s
       return () => clearInterval(interval);
     }
@@ -817,7 +1044,7 @@ export default function Dashboard() {
         const errData = await response.json();
         setChannelCreateError(errData.detail || "Failed to create alert channel.");
       }
-    } catch (err) {
+    } catch {
       setChannelCreateError("Connection error while creating alert channel.");
     } finally {
       setIsSavingChannel(false);
@@ -873,7 +1100,7 @@ export default function Dashboard() {
       } else {
         alert(data.detail || "Failed to send test alert.");
       }
-    } catch (err) {
+    } catch {
       alert("Error sending test alert connection.");
     } finally {
       setIsTestingChannelId(null);
@@ -916,7 +1143,7 @@ export default function Dashboard() {
       } else {
         setPriorityCreateError(data.detail || "Failed to create severity priority.");
       }
-    } catch (err) {
+    } catch {
       setPriorityCreateError("Connection error while creating severity priority.");
     } finally {
       setIsSavingPriority(false);
@@ -972,7 +1199,7 @@ export default function Dashboard() {
           if (typeof headersObj !== "object" || headersObj === null) {
             throw new Error("Must be a JSON object");
           }
-        } catch (e) {
+        } catch {
           setCreateError("Custom Headers must be a valid JSON object (e.g. {\"Authorization\": \"Bearer token\"})");
           setIsCreating(false);
           return;
@@ -992,7 +1219,9 @@ export default function Dashboard() {
           alert_webhook_url: alertWebhookUrl.trim() || undefined,
           auth_headers: headersObj || undefined,
           max_retries: maxRetriesInput ? parseInt(maxRetriesInput) : undefined,
-          backoff_base: backoffBaseInput ? parseInt(backoffBaseInput) : undefined
+          backoff_base: backoffBaseInput ? parseInt(backoffBaseInput) : undefined,
+          idempotency_strategy: idempotencyStrategyInput,
+          idempotency_ttl: idempotencyTTLInput ? parseInt(idempotencyTTLInput) * 3600 : 86400
         })
       });
 
@@ -1004,12 +1233,14 @@ export default function Dashboard() {
         setAuthHeadersInput("");
         setMaxRetriesInput("");
         setBackoffBaseInput("");
+        setIdempotencyStrategyInput("auto");
+        setIdempotencyTTLInput("24");
         fetchData();
       } else {
         const err = await response.json();
         setCreateError(err.detail || "Failed to create endpoint.");
       }
-    } catch (err) {
+    } catch {
       setCreateError("Error communicating with database.");
     } finally {
       setIsCreating(false);
@@ -1088,7 +1319,7 @@ export default function Dashboard() {
         const err = await response.json();
         setProjectCreateError(err.detail || "Failed to create project.");
       }
-    } catch (err) {
+    } catch {
       setProjectCreateError("Error communicating with database.");
     } finally {
       setIsCreatingProject(false);
@@ -1160,7 +1391,7 @@ export default function Dashboard() {
         const err = await response.json();
         setMilestoneCreateError(err.detail || "Failed to create milestone.");
       }
-    } catch (err) {
+    } catch {
       setMilestoneCreateError("Error communicating with database.");
     } finally {
       setIsCreatingMilestone(false);
@@ -1215,7 +1446,7 @@ export default function Dashboard() {
     end.setHours(23,59,59,999);
     
     const days: Date[] = [];
-    let curr = new Date(start);
+    const curr = new Date(start);
     while (curr <= end) {
       days.push(new Date(curr));
       curr.setDate(curr.getDate() + 1);
@@ -1683,6 +1914,8 @@ export default function Dashboard() {
           </div>
         )}
         {renderSeverityPrioritiesSection()}
+        {renderWorkflowStatusesSection()}
+        {renderCustomFieldsSection()}
       </div>
     );
   };
@@ -1717,7 +1950,7 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-4">
             {severityPriorities.map((pri) => {
-              let dotStyle = { backgroundColor: pri.color };
+              const dotStyle = { backgroundColor: pri.color };
               
               return (
                 <div 
@@ -1808,6 +2041,179 @@ export default function Dashboard() {
             })}
           </div>
         )}
+      </div>
+    );
+  };
+
+  const renderWorkflowStatusesSection = () => {
+    return (
+      <div className="flex flex-col bg-canvas p-6 space-y-6 border-t border-hairline mt-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-hairline">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Custom Board Workflow Statuses</h3>
+            <p className="text-xs text-ink-subtle mt-0.5 font-sans">
+              Configure custom statuses to structure your issue management board columns.
+            </p>
+          </div>
+          <button 
+            onClick={() => {
+              setStatusCreateError("");
+              setShowCreateStatusModal(true);
+            }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-ink font-semibold border border-primary-focus/50 transition-colors shadow-sm select-none"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Status</span>
+          </button>
+        </div>
+
+        {workflowStatuses.length === 0 ? (
+          <p className="text-xs text-ink-subtle italic">No custom workflow statuses configured. Falling back to default Todo / In Progress / Done columns.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {workflowStatuses.map((ws) => (
+              <div key={ws.id} className="bg-surface-1 border border-hairline rounded-lg p-4 flex items-center justify-between hover:border-hairline-strong transition-colors">
+                <div className="flex items-center space-x-3">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ws.color }} />
+                  <div>
+                    <span className="text-xs font-semibold text-ink">{ws.name}</span>
+                    <span className="text-[10px] text-ink-tertiary block font-mono">Order: {ws.order_index}</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => handleDeleteWorkflowStatus(ws.id)}
+                  className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCustomFieldsSection = () => {
+    return (
+      <div className="flex flex-col bg-canvas p-6 space-y-6 border-t border-hairline mt-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-hairline">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Custom Field Schema Definitions</h3>
+            <p className="text-xs text-ink-subtle mt-0.5 font-sans">
+              Create extra data fields (text, number, date) that will show up inside your issue details panels.
+            </p>
+          </div>
+          <button 
+            onClick={() => {
+              setFieldCreateError("");
+              setShowCreateFieldModal(true);
+            }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-ink font-semibold border border-primary-focus/50 transition-colors shadow-sm select-none"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Field</span>
+          </button>
+        </div>
+
+        {customFields.length === 0 ? (
+          <p className="text-xs text-ink-subtle italic">No custom fields defined yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {customFields.map((cf) => (
+              <div key={cf.id} className="bg-surface-1 border border-hairline rounded-lg p-4 flex items-center justify-between hover:border-hairline-strong transition-colors">
+                <div>
+                  <span className="text-xs font-semibold text-ink">{cf.name}</span>
+                  <span className="text-[10px] text-ink-tertiary block font-mono uppercase">{cf.field_type}</span>
+                </div>
+                <button 
+                  onClick={() => handleDeleteCustomField(cf.id)}
+                  className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCreateStatusModal = () => {
+    if (!showCreateStatusModal) return null;
+    return (
+      <div className="fixed inset-0 bg-semantic-overlay/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-surface-1 border border-hairline rounded-lg w-full max-w-md p-6 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-sm font-semibold text-ink flex items-center space-x-2">
+              <Layers className="w-4 h-4 text-primary" />
+              <span>Add Custom Workflow Status</span>
+            </h2>
+            <button onClick={() => setShowCreateStatusModal(false)} className="p-1 hover:bg-surface-2 rounded text-ink-subtle hover:text-ink transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <form onSubmit={handleCreateWorkflowStatus} className="space-y-4 font-mono text-xs">
+            {statusCreateError && <div className="p-2 border border-red-500/20 text-red-400 bg-red-950/20 rounded text-[11px]">{statusCreateError}</div>}
+            <div className="flex flex-col space-y-1.5">
+              <label className="text-ink-subtle">Status Name</label>
+              <input type="text" required placeholder="e.g. Backlog, Testing" value={newStatusName} onChange={(e) => setNewStatusName(e.target.value)} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
+            </div>
+            <div className="flex flex-col space-y-1.5">
+              <label className="text-ink-subtle">Color</label>
+              <input type="text" placeholder="e.g. #ff0055, HSL(120, 50%, 50%)" value={newStatusColor} onChange={(e) => setNewStatusColor(e.target.value)} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
+            </div>
+            <div className="flex flex-col space-y-1.5">
+              <label className="text-ink-subtle">Order Index</label>
+              <input type="number" value={newStatusOrderIndex} onChange={(e) => setNewStatusOrderIndex(parseInt(e.target.value) || 0)} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
+            </div>
+            <div className="pt-2 flex justify-end space-x-2">
+              <button type="button" onClick={() => setShowCreateStatusModal(false)} className="px-4 py-2 border border-hairline rounded bg-surface-2 hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors">Cancel</button>
+              <button type="submit" disabled={isSavingStatus} className="px-4 py-2 bg-primary hover:bg-primary-hover text-ink font-semibold rounded border border-primary-focus/50 transition-colors">{isSavingStatus ? "Creating..." : "Create Status"}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCreateFieldModal = () => {
+    if (!showCreateFieldModal) return null;
+    return (
+      <div className="fixed inset-0 bg-semantic-overlay/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-surface-1 border border-hairline rounded-lg w-full max-w-md p-6 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-sm font-semibold text-ink flex items-center space-x-2">
+              <Settings className="w-4 h-4 text-primary" />
+              <span>Add Custom Field Definition</span>
+            </h2>
+            <button onClick={() => setShowCreateFieldModal(false)} className="p-1 hover:bg-surface-2 rounded text-ink-subtle hover:text-ink transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <form onSubmit={handleCreateCustomField} className="space-y-4 font-mono text-xs">
+            {fieldCreateError && <div className="p-2 border border-red-500/20 text-red-400 bg-red-950/20 rounded text-[11px]">{fieldCreateError}</div>}
+            <div className="flex flex-col space-y-1.5">
+              <label className="text-ink-subtle">Field Name</label>
+              <input type="text" required placeholder="e.g. Severity Score, Next Review" value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
+            </div>
+            <div className="flex flex-col space-y-1.5">
+              <label className="text-ink-subtle">Field Type</label>
+              <select value={newFieldType} onChange={(e) => setNewFieldType(e.target.value as "text" | "number" | "date")} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary cursor-pointer">
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="date">Date</option>
+              </select>
+            </div>
+            <div className="pt-2 flex justify-end space-x-2">
+              <button type="button" onClick={() => setShowCreateFieldModal(false)} className="px-4 py-2 border border-hairline rounded bg-surface-2 hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors">Cancel</button>
+              <button type="submit" disabled={isSavingField} className="px-4 py-2 bg-primary hover:bg-primary-hover text-ink font-semibold rounded border border-primary-focus/50 transition-colors">{isSavingField ? "Creating..." : "Create Field"}</button>
+            </div>
+          </form>
+        </div>
       </div>
     );
   };
@@ -1966,7 +2372,7 @@ export default function Dashboard() {
               </label>
               <select 
                 value={newChannelType}
-                onChange={(e) => setNewChannelType(e.target.value as any)}
+                onChange={(e) => setNewChannelType(e.target.value as "slack" | "discord" | "email")}
                 className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 cursor-pointer"
               >
                 <option value="slack">Slack Webhook</option>
@@ -2124,8 +2530,16 @@ export default function Dashboard() {
     );
   };
 
-  const renderBoardColumn = (colStatus: "todo" | "in_progress" | "done", label: string, badgeStyles: string) => {
-    const colIncidents = incidents.filter(i => i.status === colStatus);
+  const getIssueTypeIcon = (type: string) => {
+    const t = type?.toLowerCase();
+    if (t === "bug") return <Bug className="w-3.5 h-3.5 text-red-400" />;
+    if (t === "story") return <Bookmark className="w-3.5 h-3.5 text-purple-400" />;
+    if (t === "task") return <CheckSquare className="w-3.5 h-3.5 text-blue-400" />;
+    return <Shield className="w-3.5 h-3.5 text-amber-400" />; // default incident
+  };
+
+  const renderBoardColumn = (colStatus: string, label: string, badgeStyles: string, customColor?: string) => {
+    const colIncidents = incidents.filter(i => i.status.toLowerCase() === colStatus.toLowerCase());
     const isDraggedOver = draggedOverCol === colStatus;
     
     return (
@@ -2159,7 +2573,10 @@ export default function Dashboard() {
         }`}
       >
         <div className="flex items-center justify-between pb-2 border-b border-hairline">
-          <span className={`text-[10px] uppercase font-semibold px-2.5 py-0.5 rounded-full border ${badgeStyles}`}>
+          <span 
+            style={customColor ? { borderColor: `${customColor}30`, color: customColor, backgroundColor: `${customColor}10` } : {}}
+            className={`text-[10px] uppercase font-semibold px-2.5 py-0.5 rounded-full border ${badgeStyles}`}
+          >
             {label}
           </span>
           <span className="text-[10px] text-ink-tertiary font-mono">{colIncidents.length}</span>
@@ -2167,7 +2584,7 @@ export default function Dashboard() {
         
         <div className="flex-1 space-y-2 overflow-y-auto max-h-[450px] pr-1">
           {colIncidents.length === 0 ? (
-            <div className="text-[10px] text-ink-tertiary italic text-center py-4">No incidents</div>
+            <div className="text-[10px] text-ink-tertiary italic text-center py-4">No issues</div>
           ) : (
             colIncidents.map(inc => {
               const ep = endpoints.find(e => e.id === inc.endpoint_id);
@@ -2199,15 +2616,27 @@ export default function Dashboard() {
                     >
                       {inc.priority}
                     </span>
-                    <span className="text-[9px] font-mono text-ink-tertiary">/p/{slugLabel}</span>
+                    <div className="flex items-center space-x-1.5">
+                      {getIssueTypeIcon(inc.issue_type)}
+                      <span className="text-[9px] font-mono text-ink-tertiary">/p/{slugLabel}</span>
+                    </div>
                   </div>
                   <h4 className="text-xs font-semibold text-ink mt-2 line-clamp-2">{inc.title}</h4>
-                  {inc.assignee && (
-                    <div className="mt-3 flex items-center space-x-1.5 text-[9px] text-primary font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      <span>{inc.assignee}</span>
-                    </div>
-                  )}
+                  <div className="mt-3 flex items-center justify-between">
+                    {inc.assignee ? (
+                      <div className="flex items-center space-x-1.5 text-[9px] text-primary font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <span>{inc.assignee}</span>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                    {inc.story_points !== null && inc.story_points !== undefined && (
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-surface-3 text-ink-subtle border border-hairline">
+                        {inc.story_points} pts
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })
@@ -2484,6 +2913,35 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                      Idempotency Strategy
+                    </label>
+                    <select 
+                      value={idempotencyStrategyInput}
+                      onChange={(e) => setIdempotencyStrategyInput(e.target.value)}
+                      className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150 cursor-pointer"
+                    >
+                      <option value="auto">Auto (Header Check)</option>
+                      <option value="payload_hash">Payload Hash (Strict)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                      Idempotency TTL (hours)
+                    </label>
+                    <input 
+                      type="number" 
+                      placeholder="e.g. 24 (Default: 24)" 
+                      value={idempotencyTTLInput}
+                      onChange={(e) => setIdempotencyTTLInput(e.target.value)}
+                      min="1"
+                      className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                    />
+                  </div>
+                </div>
+
                 {createError && (
                   <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded">
                     {createError}
@@ -2621,8 +3079,8 @@ export default function Dashboard() {
                     activeTab === "alerts" ? "text-ink border-b-2 border-primary" : "text-ink-subtle hover:text-ink"
                   }`}
                 >
-                  <Bell className="w-4 h-4" />
-                  <span>Alerts ({alertChannels.length})</span>
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab("analytics")}
@@ -2712,7 +3170,7 @@ export default function Dashboard() {
 
                 {projects.length === 0 ? (
                   <div className="text-center py-12 text-ink-tertiary text-xs italic">
-                    No roadmap initiatives created yet. Click "New Project" to begin tracking.
+                    No roadmap initiatives created yet. Click &quot;New Project&quot; to begin tracking.
                   </div>
                 ) : roadmapViewMode === "timeline" ? (
                   renderTimelineView()
@@ -2748,7 +3206,7 @@ export default function Dashboard() {
                             </div>
                             <select 
                               value={proj.status}
-                              onChange={(e) => handleUpdateProject(proj.id, { status: e.target.value as any })}
+                              onChange={(e) => handleUpdateProject(proj.id, { status: e.target.value as "backlog" | "started" | "completed" | "paused" })}
                               className={`text-[9px] uppercase font-semibold px-2 py-0.5 rounded-full border cursor-pointer focus:outline-none ${statusBadge}`}
                             >
                               <option value="backlog">Backlog</option>
@@ -2813,10 +3271,23 @@ export default function Dashboard() {
             ) : activeTab === "board" ? (
               <div className="flex flex-col bg-canvas min-h-[450px]">
                 {renderBoardFilterBar()}
-                <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {renderBoardColumn("todo", "Todo", "bg-amber-500/10 border-amber-500/20 text-amber-400")}
-                  {renderBoardColumn("in_progress", "In Progress", "bg-blue-500/10 border-blue-500/20 text-blue-400")}
-                  {renderBoardColumn("done", "Done", "bg-emerald-500/10 border-emerald-500/20 text-success")}
+                <div className={`p-4 grid grid-cols-1 gap-4`} style={{ gridTemplateColumns: `repeat(${workflowStatuses.length > 0 ? workflowStatuses.length : 3}, minmax(0, 1fr))` }}>
+                  {workflowStatuses.length > 0 ? (
+                    workflowStatuses.map((ws) => 
+                      renderBoardColumn(
+                        ws.name, 
+                        ws.name, 
+                        "border-hairline text-ink", 
+                        ws.color
+                      )
+                    )
+                  ) : (
+                    <>
+                      {renderBoardColumn("todo", "Todo", "bg-amber-500/10 border-amber-500/20 text-amber-400")}
+                      {renderBoardColumn("in_progress", "In Progress", "bg-blue-500/10 border-blue-500/20 text-blue-400")}
+                      {renderBoardColumn("done", "Done", "bg-emerald-500/10 border-emerald-500/20 text-success")}
+                    </>
+                  )}
                 </div>
               </div>
             ) : activeTab === "alerts" ? (
@@ -2983,6 +3454,18 @@ export default function Dashboard() {
                   </span>
                 </div>
               )}
+
+              <div className="flex justify-between py-1 border-b border-hairline">
+                <span className="text-ink-tertiary">Idempotency Strategy:</span>
+                <span className="text-ink capitalize font-sans">{selectedEndpoint.idempotency_strategy || "auto"}</span>
+              </div>
+
+              <div className="flex justify-between py-1 border-b border-hairline">
+                <span className="text-ink-tertiary">Idempotency TTL:</span>
+                <span className="text-ink font-sans">
+                  {selectedEndpoint.idempotency_ttl ? (selectedEndpoint.idempotency_ttl / 3600).toFixed(1) : "24"} hours
+                </span>
+              </div>
             </div>
 
             <div className="mt-6 flex justify-end">
@@ -3133,15 +3616,37 @@ export default function Dashboard() {
               {/* Properties Box */}
               <div className="bg-surface-2 border border-hairline rounded-lg p-4 font-mono text-xs space-y-3">
                 <div className="flex justify-between items-center">
+                  <span className="text-ink-subtle">Issue Type:</span>
+                  <select 
+                    value={selectedIncident.issue_type || "incident"}
+                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { issue_type: e.target.value as "incident" | "story" | "task" | "bug" })}
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary capitalize font-sans"
+                  >
+                    <option value="incident">Incident</option>
+                    <option value="story">Story</option>
+                    <option value="task">Task</option>
+                    <option value="bug">Bug</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-between items-center">
                   <span className="text-ink-subtle">Status:</span>
                   <select 
                     value={selectedIncident.status}
-                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { status: e.target.value as any })}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary"
+                    onChange={(e) => handleUpdateIncident(selectedIncident.id, { status: e.target.value })}
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary capitalize font-sans"
                   >
-                    <option value="todo">Todo</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="done">Done (Resolved)</option>
+                    {workflowStatuses.length > 0 ? (
+                      workflowStatuses.map(ws => (
+                        <option key={ws.id} value={ws.name}>{ws.name}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="todo">Todo</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="done">Done (Resolved)</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -3150,7 +3655,7 @@ export default function Dashboard() {
                   <select 
                     value={selectedIncident.priority}
                     onChange={(e) => handleUpdateIncident(selectedIncident.id, { priority: e.target.value })}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary uppercase"
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary uppercase font-sans"
                   >
                     {severityPriorities.length > 0 ? (
                       severityPriorities.map(p => (
@@ -3168,6 +3673,25 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex justify-between items-center">
+                  <span className="text-ink-subtle">Story Points:</span>
+                  <input 
+                    type="number" 
+                    min="0"
+                    placeholder="0" 
+                    value={selectedIncident.story_points ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? null : parseInt(e.target.value);
+                      setSelectedIncident(prev => prev ? { ...prev, story_points: val } : null);
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value === "" ? null : parseInt(e.target.value);
+                      handleUpdateIncident(selectedIncident.id, { story_points: val });
+                    }}
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-20 focus:outline-none focus:border-primary text-center"
+                  />
+                </div>
+
+                <div className="flex justify-between items-center">
                   <span className="text-ink-subtle">Assignee:</span>
                   <div className="flex items-center space-x-2">
                     <input 
@@ -3176,7 +3700,7 @@ export default function Dashboard() {
                       value={assigneeInput}
                       onChange={(e) => setAssigneeInput(e.target.value)}
                       onBlur={() => handleUpdateIncident(selectedIncident.id, { assignee: assigneeInput.trim() })}
-                      className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary"
+                      className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary font-sans"
                     />
                   </div>
                 </div>
@@ -3186,7 +3710,7 @@ export default function Dashboard() {
                   <select 
                     value={selectedIncident.project_id || ""}
                     onChange={(e) => handleUpdateIncident(selectedIncident.id, { project_id: e.target.value || null })}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-48 focus:outline-none focus:border-primary cursor-pointer"
+                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-48 focus:outline-none focus:border-primary cursor-pointer font-sans"
                   >
                     <option value="">No Project Initiative</option>
                     {projects.map((proj) => (
@@ -3194,6 +3718,37 @@ export default function Dashboard() {
                     ))}
                   </select>
                 </div>
+
+                {/* Custom Fields dynamic render */}
+                {customFields.map((cf) => {
+                  const currentVal = selectedIncident.custom_values?.find(cv => cv.field_id === cf.id)?.value_text || "";
+                  return (
+                    <div key={cf.id} className="flex justify-between items-center">
+                      <span className="text-ink-subtle">{cf.name}:</span>
+                      <input 
+                        type={cf.field_type === "number" ? "number" : cf.field_type === "date" ? "date" : "text"}
+                        value={currentVal}
+                        placeholder={`Enter ${cf.name.toLowerCase()}`}
+                        onChange={(e) => {
+                          const newVal = e.target.value;
+                          setSelectedIncident(prev => {
+                            if (!prev) return null;
+                            const updatedValues = [...(prev.custom_values || [])];
+                            const idx = updatedValues.findIndex(cv => cv.field_id === cf.id);
+                            if (idx >= 0) {
+                              updatedValues[idx] = { ...updatedValues[idx], value_text: newVal };
+                            } else {
+                              updatedValues.push({ id: "", issue_id: prev.id, field_id: cf.id, value_text: newVal, created_at: "" });
+                            }
+                            return { ...prev, custom_values: updatedValues };
+                          });
+                        }}
+                        onBlur={(e) => handleSaveCustomFieldValue(selectedIncident.id, cf.id, e.target.value)}
+                        className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary font-sans"
+                      />
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Title & Description */}
@@ -3486,7 +4041,7 @@ export default function Dashboard() {
                 </label>
                 <select 
                   value={projectStatusInput}
-                  onChange={(e) => setProjectStatusInput(e.target.value as any)}
+                  onChange={(e) => setProjectStatusInput(e.target.value as "backlog" | "started" | "completed" | "paused")}
                   className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                 >
                   <option value="backlog">Backlog</option>
@@ -3613,6 +4168,8 @@ export default function Dashboard() {
 
       {renderCreateChannelModal()}
       {renderCreatePriorityModal()}
+      {renderCreateStatusModal()}
+      {renderCreateFieldModal()}
 
     </div>
   );

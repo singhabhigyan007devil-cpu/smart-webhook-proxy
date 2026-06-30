@@ -5,7 +5,7 @@ from sqlalchemy.future import select
 
 from backend.app.main import app
 from backend.app.db import get_db, Base
-from backend.app.models import User, Endpoint, Incident, Project
+from backend.app.models import User, Endpoint, Issue, Project
 from backend.app.cache import slug_cache
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_hookshield.db"
@@ -44,8 +44,9 @@ async def test_projects_crud_and_assignment():
             max_retries=3,
             active_state=True
         )
-        incident1 = Incident(
+        incident1 = Issue(
             id="incident-1",
+            user_id="user-1",
             endpoint_id="endpoint-1",
             title="Failed webhook incident 1",
             status="todo",
@@ -121,7 +122,7 @@ async def test_projects_crud_and_assignment():
 
         # 7. Map incident to project_id (User-1 endpoint/incident to User-1 project)
         incident_patch_res = await ac.patch(
-            f"/api/incidents/incident-1",
+            f"/api/issues/incident-1",
             headers={"Authorization": "Bearer key-1"},
             json={"project_id": project_id}
         )
@@ -130,7 +131,7 @@ async def test_projects_crud_and_assignment():
 
         # 8. Attempt to map incident to User-2's project as User-1 (should fail)
         incident_patch_res_fail = await ac.patch(
-            f"/api/incidents/incident-1",
+            f"/api/issues/incident-1",
             headers={"Authorization": "Bearer key-1"},
             json={"project_id": project2_id}
         )
@@ -146,7 +147,7 @@ async def test_projects_crud_and_assignment():
 
         # Verify incident's project_id is SET NULL (None)
         async with TestingSessionLocal() as db:
-            result = await db.execute(select(Incident).where(Incident.id == "incident-1"))
+            result = await db.execute(select(Issue).where(Issue.id == "incident-1"))
             inc = result.scalars().first()
             assert inc is not None
             assert inc.project_id is None

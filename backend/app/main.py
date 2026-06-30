@@ -5,7 +5,32 @@ from contextlib import asynccontextmanager
 
 from backend.app.config import settings
 from backend.app.db import init_db, engine
-from backend.app.routers import ingest, worker, endpoints, incidents, projects, alert_channels, severity_priorities, analytics
+from backend.app.routers import ingest, worker, endpoints, issues, projects, alert_channels, severity_priorities, analytics
+
+import asyncio
+from datetime import datetime, timezone
+from sqlalchemy import delete
+from backend.app.db import AsyncSessionLocal
+from backend.app.models import IdempotencyKey
+
+async def periodic_idempotency_cleanup():
+    print("[SYSTEM] Starting Idempotency Key Cleanup Task loop...")
+    while True:
+        try:
+            await asyncio.sleep(60)
+            now = datetime.now(timezone.utc)
+            async with AsyncSessionLocal() as db:
+                stmt = delete(IdempotencyKey).where(IdempotencyKey.expires_at < now)
+                res = await db.execute(stmt)
+                await db.commit()
+                deleted_count = res.rowcount
+                if deleted_count > 0:
+                    print(f"[SYSTEM CLEANUP] Pruned {deleted_count} expired idempotency keys.")
+        except asyncio.CancelledError:
+            print("[SYSTEM CLEANUP] Cleanup task cancelled.")
+            break
+        except Exception as e:
+            print(f"[SYSTEM CLEANUP ERROR] Exception during idempotency cleanup: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,10 +41,17 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("[SYSTEM] Database connection initialized.")
     
+    cleanup_task = asyncio.create_task(periodic_idempotency_cleanup())
+    
     yield
     
     # Shutdown actions
     print("[SYSTEM] Shutting down HookShield Services...")
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
     print("[SYSTEM] Connection pools closed.")
 
@@ -43,7 +75,7 @@ app.add_middleware(
 app.include_router(ingest.router)
 app.include_router(worker.router)
 app.include_router(endpoints.router, prefix="/api")
-app.include_router(incidents.router, prefix="/api")
+app.include_router(issues.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(alert_channels.router, prefix="/api")
 app.include_router(severity_priorities.router, prefix="/api")

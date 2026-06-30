@@ -16,6 +16,9 @@ class User(Base):
     endpoints = relationship("Endpoint", back_populates="user", cascade="all, delete-orphan")
     alert_channels = relationship("AlertChannel", back_populates="user", cascade="all, delete-orphan")
     severity_priorities = relationship("SeverityPriority", back_populates="user", cascade="all, delete-orphan")
+    workflow_statuses = relationship("WorkflowStatus", back_populates="user", cascade="all, delete-orphan")
+    issues = relationship("Issue", back_populates="user", cascade="all, delete-orphan")
+    custom_fields = relationship("CustomField", back_populates="user", cascade="all, delete-orphan")
 
 class Endpoint(Base):
     __tablename__ = "endpoints"
@@ -32,6 +35,8 @@ class Endpoint(Base):
     auth_headers = Column(JSON, nullable=True)
     max_retries = Column(Integer, nullable=True)
     backoff_base = Column(Integer, nullable=True)
+    idempotency_strategy = Column(String(50), default="auto", nullable=False)
+    idempotency_ttl = Column(Integer, default=86400, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="endpoints")
@@ -59,6 +64,7 @@ class IdempotencyKey(Base):
     __tablename__ = "idempotency_keys"
 
     key_hash = Column(String(255), primary_key=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 class Project(Base):
@@ -72,7 +78,7 @@ class Project(Base):
     target_date = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    incidents = relationship("Incident", back_populates="project")
+    issues = relationship("Issue", back_populates="project")
     milestones = relationship("ProjectMilestone", back_populates="project", cascade="all, delete-orphan")
 
 class ProjectMilestone(Base):
@@ -88,34 +94,75 @@ class ProjectMilestone(Base):
 
     project = relationship("Project", back_populates="milestones")
 
-class Incident(Base):
-    __tablename__ = "incidents"
+class WorkflowStatus(Base):
+    __tablename__ = "workflow_statuses"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    endpoint_id = Column(String(36), ForeignKey("endpoints.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    color = Column(String(50), default="#718096", nullable=False)
+    order_index = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="workflow_statuses")
+
+class Issue(Base):
+    __tablename__ = "issues"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    endpoint_id = Column(String(36), ForeignKey("endpoints.id", ondelete="SET NULL"), nullable=True, index=True)
     project_id = Column(String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
+    issue_type = Column(String(50), default="incident", nullable=False) 
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    status = Column(String(50), default="todo", nullable=False, index=True)  # todo, in_progress, done
-    priority = Column(String(50), default="medium", nullable=False, index=True)  # urgent, high, medium, low
+    status = Column(String(50), default="todo", nullable=False, index=True) 
+    priority = Column(String(50), default="medium", nullable=False, index=True) 
+    story_points = Column(Integer, nullable=True)
     assignee = Column(String(255), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+    user = relationship("User", back_populates="issues")
     endpoint = relationship("Endpoint")
-    project = relationship("Project", back_populates="incidents")
-    comments = relationship("IncidentComment", back_populates="incident", cascade="all, delete-orphan")
+    project = relationship("Project", back_populates="issues")
+    comments = relationship("IssueComment", back_populates="issue", cascade="all, delete-orphan")
+    custom_values = relationship("IssueCustomValue", back_populates="issue", cascade="all, delete-orphan")
 
-class IncidentComment(Base):
-    __tablename__ = "incident_comments"
+class IssueComment(Base):
+    __tablename__ = "issue_comments"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    incident_id = Column(String(36), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
+    issue_id = Column(String(36), ForeignKey("issues.id", ondelete="CASCADE"), nullable=False, index=True)
     commenter = Column(String(255), nullable=False)
     body = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    incident = relationship("Incident", back_populates="comments")
+    issue = relationship("Issue", back_populates="comments")
+
+class CustomField(Base):
+    __tablename__ = "custom_fields"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    field_type = Column(String(50), default="text", nullable=False) 
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="custom_fields")
+
+class IssueCustomValue(Base):
+    __tablename__ = "issue_custom_values"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    issue_id = Column(String(36), ForeignKey("issues.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_id = Column(String(36), ForeignKey("custom_fields.id", ondelete="CASCADE"), nullable=False, index=True)
+    value_text = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    issue = relationship("Issue", back_populates="custom_values")
+    field = relationship("CustomField")
 
 class AlertChannel(Base):
     __tablename__ = "alert_channels"

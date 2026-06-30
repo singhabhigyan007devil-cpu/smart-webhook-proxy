@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 
 from backend.app.main import app
 from backend.app.db import get_db, Base
-from backend.app.models import User, SeverityPriority, AlertChannel, Endpoint, Incident
+from backend.app.models import User, SeverityPriority, AlertChannel, Endpoint, Issue
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_hookshield.db"
 
@@ -213,7 +213,7 @@ async def test_worker_severity_escalation_and_routing():
         
         # Verify incident was created with priority "P2 - Low"
         async with TestingSessionLocal() as db:
-            incidents = (await db.execute(select(Incident).where(Incident.endpoint_id == "endpoint-w1"))).scalars().all()
+            incidents = (await db.execute(select(Issue).where(Issue.endpoint_id == "endpoint-w1"))).scalars().all()
             assert len(incidents) == 1
             assert incidents[0].priority == "P2 - Low"
 
@@ -241,7 +241,7 @@ async def test_worker_severity_escalation_and_routing():
 
         # Verify incident escalated to "P1 - High"
         async with TestingSessionLocal() as db:
-            incidents = (await db.execute(select(Incident).where(Incident.endpoint_id == "endpoint-w1"))).scalars().all()
+            incidents = (await db.execute(select(Issue).where(Issue.endpoint_id == "endpoint-w1"))).scalars().all()
             assert len(incidents) == 1
             assert incidents[0].priority == "P1 - High"
 
@@ -269,7 +269,7 @@ async def test_worker_severity_escalation_and_routing():
 
         # Verify incident escalated to "P0 - Critical"
         async with TestingSessionLocal() as db:
-            incidents = (await db.execute(select(Incident).where(Incident.endpoint_id == "endpoint-w1"))).scalars().all()
+            incidents = (await db.execute(select(Issue).where(Issue.endpoint_id == "endpoint-w1"))).scalars().all()
             assert len(incidents) == 1
             assert incidents[0].priority == "P0 - Critical"
 

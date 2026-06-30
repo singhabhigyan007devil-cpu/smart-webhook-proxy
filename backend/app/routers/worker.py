@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from backend.app.db import get_db
-from backend.app.models import Endpoint, WebhookLog, Incident
+from backend.app.models import Endpoint, WebhookLog, Issue
 from backend.app.config import settings
 from backend.app.idempotency import check_and_register_event
 from backend.app.circuit_breaker import register_success, register_failure
@@ -251,8 +251,8 @@ async def process_webhook_task(
             # Auto-create Webhook Incident in the database
             try:
                 incident_res = await db.execute(
-                    select(Incident)
-                    .where(Incident.endpoint_id == endpoint_id, Incident.status != "done")
+                    select(Issue)
+                    .where(Issue.endpoint_id == endpoint_id, Issue.status != "done")
                 )
                 existing_incident = incident_res.scalars().first()
                 
@@ -282,7 +282,8 @@ async def process_webhook_task(
                         f"**Last HTTP Code:** {status_code or 'N/A'}"
                     )
                     
-                    new_incident = Incident(
+                    new_incident = Issue(
+                        user_id=endpoint.user_id,
                         endpoint_id=endpoint_id,
                         title=title,
                         description=description,
@@ -295,10 +296,10 @@ async def process_webhook_task(
                     # Broadcast creation event
                     try:
                         from backend.app.websockets import manager
-                        from backend.app.schemas import IncidentResponse
+                        from backend.app.schemas import IssueResponse
                         await manager.broadcast({
-                            "event": "incident_created",
-                            "data": IncidentResponse.model_validate(new_incident).model_dump()
+                            "event": "issue_created",
+                            "data": IssueResponse.model_validate(new_incident).model_dump()
                         })
                     except Exception as ws_err:
                         print(f"[WORKER WS ERROR] Failed to broadcast incident creation: {ws_err}")
@@ -314,10 +315,10 @@ async def process_webhook_task(
                         # Broadcast update event
                         try:
                             from backend.app.websockets import manager
-                            from backend.app.schemas import IncidentResponse
+                            from backend.app.schemas import IssueResponse
                             await manager.broadcast({
-                                "event": "incident_updated",
-                                "data": IncidentResponse.model_validate(existing_incident).model_dump()
+                                "event": "issue_updated",
+                                "data": IssueResponse.model_validate(existing_incident).model_dump()
                             })
                         except Exception as ws_err:
                             print(f"[WORKER WS ERROR] Failed to broadcast incident update: {ws_err}")

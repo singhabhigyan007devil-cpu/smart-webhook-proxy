@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 
 from backend.app.main import app
 from backend.app.db import get_db, Base
-from backend.app.models import User, Endpoint, Incident, IncidentComment, WebhookLog
+from backend.app.models import User, Endpoint, Issue, IssueComment, WebhookLog
 from backend.app.cache import slug_cache
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_hookshield.db"
@@ -41,7 +41,7 @@ async def test_empty_incidents():
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get(
-            "/api/incidents",
+            "/api/issues",
             headers={"Authorization": "Bearer key-1"}
         )
         assert response.status_code == 200
@@ -83,30 +83,30 @@ async def test_incident_auto_creation_and_crud():
         )
         assert response.status_code == 200
 
-        # 2. Check that Incident was created in the DB automatically
+        # 2. Check that Issue was created in the DB automatically
         async with TestingSessionLocal() as db:
-            incidents = (await db.execute(select(Incident))).scalars().all()
-            assert len(incidents) == 1
-            assert incidents[0].endpoint_id == "endpoint-1"
-            assert incidents[0].status == "todo"
-            assert incidents[0].priority == "high"
-            assert "Delivery failed for slug /p/slug-1" in incidents[0].title
-            incident_id = incidents[0].id
+            issues = (await db.execute(select(Issue))).scalars().all()
+            assert len(issues) == 1
+            assert issues[0].endpoint_id == "endpoint-1"
+            assert issues[0].status == "todo"
+            assert issues[0].priority == "high"
+            assert "Delivery failed for slug /p/slug-1" in issues[0].title
+            issue_id = issues[0].id
 
-        # 3. List incidents via API
+        # 3. List issues via API
         list_res = await ac.get(
-            "/api/incidents",
+            "/api/issues",
             headers={"Authorization": "Bearer key-1"}
         )
         assert list_res.status_code == 200
         data = list_res.json()
         assert len(data) == 1
-        assert data[0]["id"] == incident_id
+        assert data[0]["id"] == issue_id
         assert data[0]["status"] == "todo"
 
-        # 4. Patch/Update Incident (Assign, Update Status/Priority)
+        # 4. Patch/Update Issue (Assign, Update Status/Priority)
         patch_res = await ac.patch(
-            f"/api/incidents/{incident_id}",
+            f"/api/issues/{issue_id}",
             headers={"Authorization": "Bearer key-1"},
             json={
                 "status": "in_progress",
@@ -122,7 +122,7 @@ async def test_incident_auto_creation_and_crud():
 
         # 5. Comment Creation & Listing
         comment_create_res = await ac.post(
-            f"/api/incidents/{incident_id}/comments",
+            f"/api/issues/{issue_id}/comments",
             headers={"Authorization": "Bearer key-1"},
             json={
                 "commenter": "Alice",
@@ -133,10 +133,10 @@ async def test_incident_auto_creation_and_crud():
         comment_data = comment_create_res.json()
         assert comment_data["commenter"] == "Alice"
         assert comment_data["body"] == "Working on reproducing this failure."
-        assert comment_data["incident_id"] == incident_id
+        assert comment_data["issue_id"] == issue_id
 
         comments_list_res = await ac.get(
-            f"/api/incidents/{incident_id}/comments",
+            f"/api/issues/{issue_id}/comments",
             headers={"Authorization": "Bearer key-1"}
         )
         assert comments_list_res.status_code == 200

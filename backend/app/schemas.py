@@ -36,6 +36,8 @@ class EndpointBase(BaseModel):
     auth_headers: Optional[Dict[str, str]] = None
     max_retries: Optional[int] = None
     backoff_base: Optional[int] = None
+    idempotency_strategy: Optional[str] = "auto"
+    idempotency_ttl: Optional[int] = 86400
 
 class EndpointCreate(EndpointBase):
     slug: Optional[str] = None  # Will auto-generate slug if not provided
@@ -49,6 +51,8 @@ class EndpointUpdate(BaseModel):
     auth_headers: Optional[Dict[str, str]] = None
     max_retries: Optional[int] = None
     backoff_base: Optional[int] = None
+    idempotency_strategy: Optional[str] = None
+    idempotency_ttl: Optional[int] = None
 
 class EndpointResponse(EndpointBase):
     id: str
@@ -57,6 +61,9 @@ class EndpointResponse(EndpointBase):
     active_state: bool
     failure_count: int
     created_at: datetime
+
+    idempotency_strategy: str
+    idempotency_ttl: int
 
     @field_serializer('created_at')
     def serialize_created_at(self, dt: datetime, _info):
@@ -152,14 +159,80 @@ class ProjectMilestoneResponse(ProjectMilestoneBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Incident Schemas ---
-class IncidentCommentCreate(BaseModel):
+# --- Workflow Status Schemas ---
+class WorkflowStatusBase(BaseModel):
+    name: str
+    color: str = "#718096"
+    order_index: int = 0
+
+class WorkflowStatusCreate(WorkflowStatusBase):
+    pass
+
+class WorkflowStatusUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    order_index: Optional[int] = None
+
+class WorkflowStatusResponse(WorkflowStatusBase):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Custom Field Schemas ---
+class CustomFieldBase(BaseModel):
+    name: str
+    field_type: str = "text" # text, number, date
+
+class CustomFieldCreate(CustomFieldBase):
+    pass
+
+class CustomFieldResponse(CustomFieldBase):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Issue Custom Value Schemas ---
+class IssueCustomValueBase(BaseModel):
+    field_id: str
+    value_text: str
+
+class IssueCustomValueCreate(IssueCustomValueBase):
+    pass
+
+class IssueCustomValueResponse(IssueCustomValueBase):
+    id: str
+    issue_id: str
+    created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Issue Schemas ---
+class IssueCommentCreate(BaseModel):
     commenter: str
     body: str
 
-class IncidentCommentResponse(BaseModel):
+class IssueCommentResponse(BaseModel):
     id: str
-    incident_id: str
+    issue_id: str
     commenter: str
     body: str
     created_at: datetime
@@ -170,26 +243,36 @@ class IncidentCommentResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class IncidentUpdate(BaseModel):
-    status: Optional[str] = None  # todo, in_progress, done
-    priority: Optional[str] = None  # urgent, high, medium, low
+class IssueUpdate(BaseModel):
+    status: Optional[str] = None
+    priority: Optional[str] = None
     assignee: Optional[str] = None
     project_id: Optional[str] = None
+    issue_type: Optional[str] = None
+    story_points: Optional[int] = None
+    completed_at: Optional[datetime] = None
 
-class IncidentResponse(BaseModel):
+class IssueResponse(BaseModel):
     id: str
-    endpoint_id: str
+    user_id: str
+    endpoint_id: Optional[str] = None
     project_id: Optional[str] = None
+    issue_type: str
     title: str
     description: Optional[str] = None
     status: str
     priority: str
+    story_points: Optional[int] = None
     assignee: Optional[str] = None
+    completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    custom_values: List[IssueCustomValueResponse] = []
 
-    @field_serializer('created_at', 'updated_at')
-    def serialize_timestamps(self, dt: datetime, _info):
+    @field_serializer('created_at', 'updated_at', 'completed_at')
+    def serialize_timestamps(self, dt: Optional[datetime], _info):
+        if dt is None:
+            return None
         return serialize_datetime(dt)
 
     model_config = ConfigDict(from_attributes=True)

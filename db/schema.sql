@@ -133,81 +133,102 @@ alter table public.project_milestones enable row level security;
 -- Indexing for project_milestones
 create index if not exists project_milestones_project_idx on public.project_milestones(project_id);
 
--- 6. Incidents Table
-create table if not exists public.incidents (
+-- 6. Workflow Statuses Table
+create table if not exists public.workflow_statuses (
     id uuid default gen_random_uuid() primary key,
-    endpoint_id uuid references public.endpoints(id) on delete cascade not null,
+    user_id uuid references public.users(id) on delete cascade not null,
+    name text not null,
+    color text not null default '#718096',
+    order_index integer default 0 not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.workflow_statuses enable row level security;
+create policy workflow_statuses_all_policy on public.workflow_statuses
+    for all using ((select auth.uid()) = user_id);
+
+-- 7. Issues Table (replaces incidents)
+create table if not exists public.issues (
+    id uuid default gen_random_uuid() primary key,
+    user_id uuid references public.users(id) on delete cascade not null,
+    endpoint_id uuid references public.endpoints(id) on delete set null,
     project_id uuid references public.projects(id) on delete set null,
+    issue_type text default 'incident' not null check (issue_type in ('incident', 'story', 'task', 'bug')),
     title text not null,
     description text,
-    status text default 'todo' not null check (status in ('todo', 'in_progress', 'done')),
+    status text default 'todo' not null,
     priority text default 'medium' not null,
+    story_points integer,
     assignee text,
+    completed_at timestamp with time zone,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
     updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Enable RLS on incidents
-alter table public.incidents enable row level security;
+-- Enable RLS on issues
+alter table public.issues enable row level security;
+create index if not exists issues_user_idx on public.issues(user_id);
+create index if not exists issues_endpoint_idx on public.issues(endpoint_id);
+create index if not exists issues_status_idx on public.issues(status);
+create index if not exists issues_project_idx on public.issues(project_id);
 
--- Indexing for performance
-create index if not exists incidents_endpoint_idx on public.incidents(endpoint_id);
-create index if not exists incidents_status_idx on public.incidents(status);
-create index if not exists incidents_project_idx on public.incidents(project_id);
+create policy issues_all_policy on public.issues
+    for all using ((select auth.uid()) = user_id);
 
--- 7. Incident Comments Table
-create table if not exists public.incident_comments (
+-- 8. Issue Comments Table
+create table if not exists public.issue_comments (
     id uuid default gen_random_uuid() primary key,
-    incident_id uuid references public.incidents(id) on delete cascade not null,
+    issue_id uuid references public.issues(id) on delete cascade not null,
     commenter text not null,
     body text not null,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Enable RLS on comments
-alter table public.incident_comments enable row level security;
+alter table public.issue_comments enable row level security;
+create index if not exists issue_comments_issue_idx on public.issue_comments(issue_id);
 
--- Indexing
-create index if not exists incident_comments_incident_idx on public.incident_comments(incident_id);
+create policy issue_comments_all_policy on public.issue_comments
+    for all using (
+        exists (
+            select 1 from public.issues
+            where public.issues.id = issue_comments.issue_id
+              and public.issues.user_id = (select auth.uid())
+        )
+    );
 
+-- 9. Custom Fields Table
+create table if not exists public.custom_fields (
+    id uuid default gen_random_uuid() primary key,
+    user_id uuid references public.users(id) on delete cascade not null,
+    name text not null,
+    field_type text default 'text' not null check (field_type in ('text', 'number', 'date')),
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
 
--- ==========================================
--- ROW LEVEL SECURITY (RLS) POLICIES FOR INCIDENTS / PROJECTS
--- ==========================================
-
-create policy projects_all_policy on public.projects
+alter table public.custom_fields enable row level security;
+create policy custom_fields_all_policy on public.custom_fields
     for all using ((select auth.uid()) = user_id);
 
-create policy project_milestones_all_policy on public.project_milestones
+-- 10. Issue Custom Values Table
+create table if not exists public.issue_custom_values (
+    id uuid default gen_random_uuid() primary key,
+    issue_id uuid references public.issues(id) on delete cascade not null,
+    field_id uuid references public.custom_fields(id) on delete cascade not null,
+    value_text text not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.issue_custom_values enable row level security;
+create policy issue_custom_values_all_policy on public.issue_custom_values
     for all using (
         exists (
-            select 1 from public.projects
-            where public.projects.id = project_milestones.project_id
-              and public.projects.user_id = (select auth.uid())
+            select 1 from public.issues
+            where public.issues.id = issue_custom_values.issue_id
+              and public.issues.user_id = (select auth.uid())
         )
     );
 
-create policy incidents_all_policy on public.incidents
-    for all using (
-        exists (
-            select 1 from public.endpoints
-            where public.endpoints.id = incidents.endpoint_id
-              and public.endpoints.user_id = (select auth.uid())
-        )
-    );
-
-create policy incident_comments_all_policy on public.incident_comments
-    for all using (
-        exists (
-            select 1 from public.incidents
-            join public.endpoints on public.endpoints.id = public.incidents.endpoint_id
-            where public.incidents.id = incident_comments.incident_id
-              and public.endpoints.user_id = (select auth.uid())
-        )
-    );
-
-
--- 8. Alert Channels Table
+-- 11. Alert Channels Table
 create table if not exists public.alert_channels (
     id uuid default gen_random_uuid() primary key,
     user_id uuid references public.users(id) on delete cascade not null,

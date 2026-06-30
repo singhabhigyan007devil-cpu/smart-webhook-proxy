@@ -1,4 +1,5 @@
 from typing import AsyncGenerator
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 from backend.app.config import settings
@@ -39,3 +40,21 @@ async def init_db() -> None:
     # Programmatic table creation if using SQLite or postgres local fallback
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        
+        # SQLite migrations for existing DBs
+        try:
+            await conn.execute(text("ALTER TABLE endpoints ADD COLUMN idempotency_strategy VARCHAR(50) DEFAULT 'auto' NOT NULL"))
+        except Exception:
+            pass
+        
+        try:
+            await conn.execute(text("ALTER TABLE endpoints ADD COLUMN idempotency_ttl INTEGER DEFAULT 86400 NOT NULL"))
+        except Exception:
+            pass
+        
+        try:
+            await conn.execute(text("ALTER TABLE idempotency_keys ADD COLUMN expires_at DATETIME"))
+        except Exception:
+            pass
+
+
