@@ -13,6 +13,7 @@ from backend.app.schemas import (
     WebhookLogResponse, DashboardMetrics
 )
 from backend.app.cache import slug_cache
+from backend.app.tasks import enqueue_webhook_task
 
 router = APIRouter()
 
@@ -58,69 +59,10 @@ async def get_current_user(
         )
     return user
 
-# --- Auth Routes ---
-@router.post("/auth/register", status_code=status.HTTP_201_CREATED)
-async def register_user(email: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == email))
-    existing = result.scalars().first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already registered"
-        )
-    
-    new_user = User(
-        id=str(uuid.uuid4()),
-        email=email,
-        api_key=f"hs_{secrets.token_hex(16)}",
-        tier="free"
-    )
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
-    return {
-        "id": new_user.id,
-        "email": new_user.email,
-        "api_key": new_user.api_key,
-        "tier": new_user.tier
-    }
 
-@router.post("/auth/login")
-async def login_user(api_key: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.api_key == api_key))
-    user = result.scalars().first()
-    if not user:
-        # Local ease of access: if they type email, look up or create. Otherwise, require API key.
-        if "@" in api_key:
-            # Auto login/signup by email for demo simplicity
-            result = await db.execute(select(User).where(User.email == api_key))
-            user = result.scalars().first()
-            if not user:
-                user = User(
-                    id=str(uuid.uuid4()),
-                    email=api_key,
-                    api_key=f"hs_{secrets.token_hex(16)}",
-                    tier="free"
-                )
-                db.add(user)
-                await db.commit()
-                await db.refresh(user)
-            return {
-                "id": user.id,
-                "email": user.email,
-                "api_key": user.api_key,
-                "tier": user.tier
-            }
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key"
-        )
-    return {
-        "id": user.id,
-        "email": user.email,
-        "api_key": user.api_key,
-        "tier": user.tier
-    }
+# --- Auth Routes ---
+# Removed old register_user and login_user endpoints. Auth is now handled by backend/app/routers/auth.py
+
 
 # --- Endpoint CRUD ---
 @router.post("/endpoints", response_model=EndpointResponse, status_code=status.HTTP_201_CREATED)
@@ -334,3 +276,49 @@ async def get_dashboard_metrics(
         pending_retries=pending_count + failed_count, # Failed represents awaiting next retry loop
         total_processed=total_processed
     )
+
+@router.post("/endpoints/{endpoint_id}/logs/{log_id}/retry", response_model=WebhookLogResponse)
+async def retry_webhook_delivery(
+    endpoint_id: str,
+    log_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Verify ownership
+    result = await db.execute(
+        select(Endpoint)
+        .where(Endpoint.id == endpoint_id, Endpoint.user_id == current_user.id)
+    )
+    if not result.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Endpoint not found"
+        )
+        
+    log_result = await db.execute(
+        select(WebhookLog)
+        .where(WebhookLog.id == log_id, WebhookLog.endpoint_id == endpoint_id)
+    )
+    log = log_result.scalars().first()
+    
+    if not log:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Log not found"
+        )
+        
+    # Enqueue task for manual retry
+    await enqueue_webhook_task(
+        endpoint_id=log.endpoint_id,
+        payload_string=log.payload_string,
+        headers=log.headers_json,
+        retry_count=0, # Reset retry count so it starts fresh
+        delay_seconds=0 # Trigger immediately
+    )
+    
+    # Optional: Update the log status to pending again, or we can just let the worker create a NEW log entry for the retry.
+    # The worker actually creates a new log entry for every outbound request (which is standard for tracking history).
+    # So we don't need to mutate this log, but just return it.
+    
+    return log
+

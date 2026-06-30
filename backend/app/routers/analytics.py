@@ -5,8 +5,8 @@ from typing import List
 from datetime import datetime, timedelta
 
 from backend.app.db import get_db
-from backend.app.models import User, WebhookLog, Endpoint
-from backend.app.schemas import AnalyticsKPIs, AnalyticsTimeSeriesResponse, AnalyticsTimeSeriesPoint
+from backend.app.models import User, WebhookLog, Endpoint, Issue
+from backend.app.schemas import AnalyticsKPIs, AnalyticsTimeSeriesResponse, AnalyticsTimeSeriesPoint, AnalyticsVelocityResponse, AnalyticsVelocityPoint, AnalyticsBurndownResponse, AnalyticsBurndownPoint
 from backend.app.routers.endpoints import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -81,3 +81,77 @@ async def get_analytics_timeseries(
         ))
         
     return AnalyticsTimeSeriesResponse(data=data)
+
+@router.get("/velocity", response_model=AnalyticsVelocityResponse)
+async def get_velocity(
+    weeks: int = Query(12, ge=1, le=52),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    cutoff_date = datetime.utcnow() - timedelta(weeks=weeks)
+    
+    stmt = select(
+        func.strftime('%Y-%W', Issue.completed_at).label("week"),
+        func.sum(Issue.story_points).label("completed_points")
+    ).select_from(Issue).where(
+        Issue.user_id == current_user.id,
+        Issue.completed_at >= cutoff_date,
+        Issue.status == 'done'
+    ).group_by(
+        func.strftime('%Y-%W', Issue.completed_at)
+    ).order_by(
+        func.strftime('%Y-%W', Issue.completed_at).asc()
+    )
+    
+    result = await db.execute(stmt)
+    rows = result.all()
+    
+    data = []
+    for row in rows:
+        if row.week:
+            data.append(AnalyticsVelocityPoint(
+                week=row.week,
+                completed_points=row.completed_points or 0
+            ))
+            
+    return AnalyticsVelocityResponse(data=data)
+
+@router.get("/burndown", response_model=AnalyticsBurndownResponse)
+async def get_burndown(
+    days: int = Query(30, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    
+    stmt = select(Issue).where(
+        Issue.user_id == current_user.id
+    )
+    
+    result = await db.execute(stmt)
+    issues = result.scalars().all()
+    
+    data = []
+    for i in range(days):
+        dt = (datetime.utcnow() - timedelta(days=days-1-i)).date()
+        open_count = 0
+        completed_count = 0
+        for issue in issues:
+            created_date = issue.created_at.date() if getattr(issue.created_at, 'date', None) else issue.created_at
+            if created_date <= dt:
+                if issue.completed_at:
+                    comp_date = issue.completed_at.date() if getattr(issue.completed_at, 'date', None) else issue.completed_at
+                    if comp_date <= dt:
+                        completed_count += 1
+                    else:
+                        open_count += 1
+                else:
+                    open_count += 1
+        
+        data.append(AnalyticsBurndownPoint(
+            date=dt.isoformat(),
+            open_issues=open_count,
+            completed_issues=completed_count
+        ))
+        
+    return AnalyticsBurndownResponse(data=data)
