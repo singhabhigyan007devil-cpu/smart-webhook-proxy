@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./hookshield.db"
 
+    # SMTP Mailer Settings
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "noreply@hookshield.io"
+
     # JWT Authentication
     JWT_SECRET: str = "supersecret_linear_theme_key_change_me_in_production"
     JWT_ALGORITHM: str = "HS256"

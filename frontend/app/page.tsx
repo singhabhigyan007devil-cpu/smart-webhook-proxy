@@ -1,5 +1,12 @@
 "use client";
 
+function extractError(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map((e: any) => e.msg ?? e.message ?? String(e)).join("; ");
+  if (detail && typeof detail === "object" && "message" in (detail as any)) return (detail as any).message;
+  return fallback;
+}
+
 import React, { useState, useEffect, useCallback } from "react";
 import { 
   Shield, 
@@ -27,6 +34,7 @@ import {
   Bookmark
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+import AuthScreen from "./components/AuthScreen";
 
 const API_BASE = "http://localhost:8000";
 
@@ -325,8 +333,11 @@ export default function Dashboard() {
 
   const fetchProfile = useCallback(async (key: string) => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login?api_key=${key}`, {
-        method: "POST"
+      const response = await fetch(`${API_BASE}/api/auth/me`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${key}`
+        }
       });
       if (response.ok) {
         const data = await response.json();
@@ -357,9 +368,11 @@ export default function Dashboard() {
     setIsLoading(true);
     setAuthError("");
     try {
-      // Login endpoint auto registers if input looks like an email or matches API key
-      const response = await fetch(`${API_BASE}/api/auth/login?api_key=${encodeURIComponent(emailInput.trim())}`, {
-        method: "POST"
+      // Connect endpoint handles both email (auto-register) and API key
+      const response = await fetch(`${API_BASE}/api/auth/connect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: emailInput.trim() })
       });
       
       if (response.ok) {
@@ -369,7 +382,7 @@ export default function Dashboard() {
         setUser(data);
       } else {
         const errData = await response.json();
-        setAuthError(errData.detail || "Authentication failed. Enter email to register or paste your API key.");
+        setAuthError(extractError(errData.detail, "Authentication failed. Enter email to register or paste your API key."));
       }
     } catch {
       setAuthError("Unable to connect to backend service. Please check that FastAPI is running.");
@@ -628,7 +641,7 @@ export default function Dashboard() {
         fetchData();
       } else {
         const errData = await response.json();
-        setStatusCreateError(errData.detail || "Failed to create workflow status");
+        setStatusCreateError(extractError(errData.detail, "Failed to create workflow status"));
       }
     } catch {
       setStatusCreateError("Network error occurred");
@@ -678,7 +691,7 @@ export default function Dashboard() {
         fetchData();
       } else {
         const errData = await response.json();
-        setFieldCreateError(errData.detail || "Failed to create custom field");
+        setFieldCreateError(extractError(errData.detail, "Failed to create custom field"));
       }
     } catch {
       setFieldCreateError("Network error occurred");
@@ -1040,7 +1053,7 @@ export default function Dashboard() {
         setNewChannelEmail("");
       } else {
         const errData = await response.json();
-        setChannelCreateError(errData.detail || "Failed to create alert channel.");
+        setChannelCreateError(extractError(errData.detail, "Failed to create alert channel."));
       }
     } catch {
       setChannelCreateError("Connection error while creating alert channel.");
@@ -1139,7 +1152,7 @@ export default function Dashboard() {
         setNewPriorityThreshold(5);
         setNewPriorityChannelId("none");
       } else {
-        setPriorityCreateError(data.detail || "Failed to create severity priority.");
+        setPriorityCreateError(extractError(data.detail, "Failed to create severity priority."));
       }
     } catch {
       setPriorityCreateError("Connection error while creating severity priority.");
@@ -1236,7 +1249,7 @@ export default function Dashboard() {
         fetchData();
       } else {
         const err = await response.json();
-        setCreateError(err.detail || "Failed to create endpoint.");
+        setCreateError(extractError(err.detail, "Failed to create endpoint."));
       }
     } catch {
       setCreateError("Error communicating with database.");
@@ -1315,7 +1328,7 @@ export default function Dashboard() {
         fetchData();
       } else {
         const err = await response.json();
-        setProjectCreateError(err.detail || "Failed to create project.");
+        setProjectCreateError(extractError(err.detail, "Failed to create project."));
       }
     } catch {
       setProjectCreateError("Error communicating with database.");
@@ -1387,7 +1400,7 @@ export default function Dashboard() {
         fetchData();
       } else {
         const err = await response.json();
-        setMilestoneCreateError(err.detail || "Failed to create milestone.");
+        setMilestoneCreateError(extractError(err.detail, "Failed to create milestone."));
       }
     } catch {
       setMilestoneCreateError("Error communicating with database.");
@@ -2275,26 +2288,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Color Theme (HSL / HEX)</label>
-              <div className="flex items-center space-x-2">
-                <input 
-                  type="text" 
-                  required
-                  value={newPriorityColor}
-                  onChange={(e) => setNewPriorityColor(e.target.value)}
-                  className="flex-1 bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150 font-mono"
-                />
-                {/* Visual Color Preview */}
-                <div 
-                  className="w-8 h-8 rounded border border-hairline flex-shrink-0"
-                  style={{ backgroundColor: newPriorityColor }}
-                />
-              </div>
-              <p className="text-[9px] text-ink-tertiary">
-                Enter an HSL string like <code className="font-mono text-primary bg-surface-2 px-1 py-0.5 rounded">hsl(0, 85%, 60%)</code> for dynamic alpha colors.
-              </p>
-            </div>
 
             <div className="space-y-1.5">
               <label className="block text-[10px] text-ink-subtle font-medium uppercase tracking-wider">Route Notification Channel</label>
@@ -2647,63 +2640,13 @@ export default function Dashboard() {
   // --- Render Login Screen ---
   if (!apiKey || !user) {
     return (
-      <div className="min-h-screen bg-canvas flex flex-col justify-center items-center px-4 selection:bg-primary selection:text-white">
-        <div className="w-full max-w-md bg-surface-1 border border-hairline rounded-lg p-8 shadow-2xl relative overflow-hidden">
-          {/* Faint subtle grid highlight line at top */}
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
-          
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 rounded-lg bg-surface-2 border border-hairline flex items-center justify-center mb-4 text-primary">
-              <Shield className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink font-sans">Sign in to HookShield</h1>
-            <p className="text-sm text-ink-subtle mt-2 text-center">
-              smart webhook proxy & exponential retry control deck.
-            </p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">
-                Developer Credentials
-              </label>
-              <input 
-                type="text" 
-                placeholder="Enter email to sign up, or API Key to connect" 
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                disabled={isLoading}
-                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none focus:ring-2 focus:ring-primary-focus/50 px-3 py-2 transition-all duration-200"
-              />
-            </div>
-
-            {authError && (
-              <div className="p-3 bg-red-950/20 border border-red-900/50 rounded text-xs text-red-400 flex items-start space-x-2">
-                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            <button 
-              type="submit" 
-              disabled={isLoading}
-              className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-sm py-2 px-4 border border-primary-focus/50 transition-colors duration-150 flex items-center justify-center space-x-2 shadow-sm"
-            >
-              {isLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <span>Launch Deck</span>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-hairline text-center">
-            <span className="text-[11px] text-ink-tertiary">
-              Built on Next.js 15, FastAPI & SQLAlchemy 2.0. Clean architecture verified.
-            </span>
-          </div>
-        </div>
-      </div>
+      <AuthScreen 
+        onLogin={(key) => {
+          localStorage.setItem("hookshield_api_key", key);
+          setApiKey(key);
+          fetchProfile(key);
+        }} 
+      />
     );
   }
 

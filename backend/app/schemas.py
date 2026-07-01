@@ -1,5 +1,6 @@
-from pydantic import BaseModel, EmailStr, HttpUrl, field_serializer, ConfigDict
+from pydantic import BaseModel, EmailStr, HttpUrl, field_serializer, ConfigDict, field_validator, Field
 from typing import Optional, Dict, Any, List
+import re
 from datetime import datetime, timezone
 
 def serialize_datetime(dt: datetime) -> str:
@@ -340,7 +341,16 @@ class SeverityPriorityResponse(SeverityPriorityBase):
 # --- Auth Schemas ---
 class AuthRegister(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
+
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one number")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("Password must contain at least one special character")
+        return v
 
 class AuthLogin(BaseModel):
     email: EmailStr
@@ -349,6 +359,32 @@ class AuthLogin(BaseModel):
 class AuthResponse(BaseModel):
     api_key: str
     email: str
+    auth_provider: str = "local"
+    avatar_url: Optional[str] = None
+
+class AuthConnect(BaseModel):
+    identifier: str  # email or api_key
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+    @field_validator('new_password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one number")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("Password must contain at least one special character")
+        return v
+
+class OAuthLoginRequest(BaseModel):
+    provider: str
+    code: str
+    redirect_uri: str
 
 
 # --- Automation Rule Schemas ---
@@ -375,6 +411,33 @@ class AutomationRuleResponse(AutomationRuleBase):
     updated_at: datetime
 
     @field_serializer('created_at', 'updated_at')
+    def serialize_timestamps(self, dt: datetime, _info):
+        return serialize_datetime(dt)
+
+# --- Cycle Schemas ---
+class CycleBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    start_date: datetime
+    end_date: datetime
+    is_active: bool = True
+
+class CycleCreate(CycleBase):
+    pass
+
+class CycleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    is_active: Optional[bool] = None
+
+class CycleResponse(CycleBase):
+    id: str
+    user_id: str
+    created_at: datetime
+
+    @field_serializer('created_at', 'start_date', 'end_date')
     def serialize_timestamps(self, dt: datetime, _info):
         return serialize_datetime(dt)
 

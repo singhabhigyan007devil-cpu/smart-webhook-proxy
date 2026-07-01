@@ -11,6 +11,16 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     api_key = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=True)
+    
+    # OAuth and Additional Auth Fields
+    auth_provider = Column(String(50), default="local", nullable=False)
+    provider_id = Column(String(255), nullable=True, index=True)
+    avatar_url = Column(String(512), nullable=True)
+    
+    # Account Recovery
+    reset_token = Column(String(255), nullable=True, index=True)
+    reset_token_expires = Column(DateTime(timezone=True), nullable=True)
+    
     tier = Column(String(50), default="free", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -94,6 +104,20 @@ class ProjectMilestone(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     project = relationship("Project", back_populates="milestones")
+
+class Cycle(Base):
+    __tablename__ = "cycles"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    start_date = Column(DateTime(timezone=True), nullable=False)
+    end_date = Column(DateTime(timezone=True), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User")
 
 class WorkflowStatus(Base):
     __tablename__ = "workflow_statuses"

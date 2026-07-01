@@ -20,19 +20,20 @@ router = APIRouter()
 
 # --- Auth Dependency ---
 async def get_current_user(
+    request: Request,
     authorization: Optional[str] = Header(None),
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization Header"
-        )
-    
-    # Handle Bearer format
-    token = authorization
-    if authorization.startswith("Bearer "):
-        token = authorization[7:]
+    token = request.cookies.get("hookshield_session")
+    if not token:
+        if not authorization:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing Authorization Header or Cookie"
+            )
+        token = authorization
+        if authorization.startswith("Bearer "):
+            token = authorization[7:]
 
     result = await db.execute(select(User).where(User.api_key == token))
     user = result.scalars().first()
