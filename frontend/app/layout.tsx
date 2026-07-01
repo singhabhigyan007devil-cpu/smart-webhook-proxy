@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   description: "Enterprise-grade intermediate buffer and automatic exponential retry engine for third-party webhooks.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{

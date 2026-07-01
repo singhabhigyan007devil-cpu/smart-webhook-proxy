@@ -12,7 +12,7 @@ interface Shape {
   vRotY: number;
   vRotZ: number;
   size: number;
-  type: "cube" | "octahedron" | "shield" | "ring" | "pyramid" | "diamond";
+  type: "shield" | "hexgrid" | "circuit" | "node" | "pipe" | "bracket";
   color: string;
   glow: string;
   floatOffset: number;
@@ -46,23 +46,6 @@ function rotateZ(x: number, y: number, z: number, a: number) {
 
 function getEdges(type: string): [number, number, number][][] {
   switch (type) {
-    case "cube": {
-      const v: [number, number, number][] = [
-        [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
-        [-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],
-      ];
-      return [[v[0],v[1]],[v[1],v[2]],[v[2],v[3]],[v[3],v[0]],
-              [v[4],v[5]],[v[5],v[6]],[v[6],v[7]],[v[7],v[4]],
-              [v[0],v[4]],[v[1],v[5]],[v[2],v[6]],[v[3],v[7]]];
-    }
-    case "octahedron": {
-      const v: [number, number, number][] = [
-        [0,-1.2,0],[1,0,0],[0,0,1],[-1,0,0],[0,0,-1],[0,1.2,0],
-      ];
-      return [[v[0],v[1]],[v[0],v[2]],[v[0],v[3]],[v[0],v[4]],
-              [v[5],v[1]],[v[5],v[2]],[v[5],v[3]],[v[5],v[4]],
-              [v[1],v[2]],[v[2],v[3]],[v[3],v[4]],[v[4],v[1]]];
-    }
     case "shield": {
       const pts: [number, number, number][] = [
         [0,-1.3,0],[-0.9,-0.7,0],[-1,0,0],[-0.7,0.7,0],
@@ -73,34 +56,114 @@ function getEdges(type: string): [number, number, number][][] {
       const back = pts.map(([x,y]) => [x,y,-0.3] as [number,number,number]);
       const r: [number,number,number][][] = [];
       edges.forEach(([a,b]) => { r.push([front[a],front[b]]); r.push([back[a],back[b]]); r.push([front[a],back[a]]); });
+      // Add inner cross lines for depth
+      r.push([front[0], back[4]]);
+      r.push([front[4], back[0]]);
       return r;
     }
-    case "ring": {
-      const segs = 20;
+    case "hexgrid": {
       const r: [number,number,number][][] = [];
-      for (let i = 0; i < segs; i++) {
-        const a1 = (i/segs)*Math.PI*2, a2 = ((i+1)/segs)*Math.PI*2;
-        r.push([[Math.cos(a1),Math.sin(a1),0],[Math.cos(a2),Math.sin(a2),0]]);
+      const hexR = 0.4;
+      const positions = [
+        [0, 0], [-0.7, 0.4], [0.7, 0.4], [-0.7, -0.4], [0.7, -0.4], [0, 0.8], [0, -0.8],
+      ];
+      for (const [cx, cy] of positions) {
+        for (let i = 0; i < 6; i++) {
+          const a1 = (i / 6) * Math.PI * 2 + Math.PI / 6;
+          const a2 = ((i + 1) / 6) * Math.PI * 2 + Math.PI / 6;
+          r.push([
+            [cx + Math.cos(a1) * hexR, cy + Math.sin(a1) * hexR, 0],
+            [cx + Math.cos(a2) * hexR, cy + Math.sin(a2) * hexR, 0],
+          ]);
+        }
       }
       return r;
     }
-    case "pyramid": {
-      const apex: [number,number,number] = [0,-1.2,0];
-      const base: [number,number,number][] = [[-0.8,0.6,-0.8],[0.8,0.6,-0.8],[0.8,0.6,0.8],[-0.8,0.6,0.8]];
-      return [
-        [apex,base[0]],[apex,base[1]],[apex,base[2]],[apex,base[3]],
-        [base[0],base[1]],[base[1],base[2]],[base[2],base[3]],[base[3],base[0]],
+    case "circuit": {
+      // Circuit board trace pattern
+      const r: [number,number,number][][] = [];
+      const tracePoints: [number,number,number][] = [
+        [-1, -0.5, 0], [-0.3, -0.5, 0], [-0.3, 0, 0], [0.3, 0, 0],
+        [0.3, 0.5, 0], [1, 0.5, 0],
       ];
+      for (let i = 0; i < tracePoints.length - 1; i++) {
+        r.push([tracePoints[i], tracePoints[i + 1]]);
+      }
+      // Branch traces
+      r.push([[-0.3, -0.5, 0], [-0.3, -1, 0]]);
+      r.push([[0.3, 0, 0], [0.3, -0.6, 0]]);
+      r.push([[-0.3, 0, 0], [-0.8, 0, 0]]);
+      r.push([[0.3, 0.5, 0], [0.8, 0.5, 0]]);
+      // Via pads
+      const viaPoints: [number,number,number][] = [
+        [-0.3, -0.5, 0], [0.3, 0, 0], [-0.3, 0, 0], [0.3, 0.5, 0],
+      ];
+      for (const vp of viaPoints) {
+        for (let i = 0; i < 8; i++) {
+          const a1 = (i / 8) * Math.PI * 2;
+          const a2 = ((i + 1) / 8) * Math.PI * 2;
+          r.push([
+            [vp[0] + Math.cos(a1) * 0.08, vp[1] + Math.sin(a1) * 0.08, 0],
+            [vp[0] + Math.cos(a2) * 0.08, vp[1] + Math.sin(a2) * 0.08, 0],
+          ]);
+        }
+      }
+      return r;
     }
-    case "diamond": {
-      const top: [number,number,number] = [0,-1.5,0];
-      const bot: [number,number,number] = [0,1.5,0];
-      const mid: [number,number,number][] = [[0.8,0,0],[0,0,0.8],[-0.8,0,0],[0,0,-0.8]];
-      return [
-        [top,mid[0]],[top,mid[1]],[top,mid[2]],[top,mid[3]],
-        [bot,mid[0]],[bot,mid[1]],[bot,mid[2]],[bot,mid[3]],
-        [mid[0],mid[1]],[mid[1],mid[2]],[mid[2],mid[3]],[mid[3],mid[0]],
+    case "node": {
+      // Network node with connections
+      const r: [number,number,number][][] = [];
+      const center: [number,number,number] = [0, 0, 0];
+      const nodes: [number,number,number][] = [
+        [0, -1, 0], [0.87, -0.5, 0], [0.87, 0.5, 0],
+        [0, 1, 0], [-0.87, 0.5, 0], [-0.87, -0.5, 0],
       ];
+      // Connect each node to center
+      for (const n of nodes) {
+        r.push([center, n]);
+      }
+      // Connect outer nodes
+      for (let i = 0; i < nodes.length; i++) {
+        r.push([nodes[i], nodes[(i + 1) % nodes.length]]);
+      }
+      return r;
+    }
+    case "pipe": {
+      // Pipeline segment
+      const r: [number,number,number][][] = [];
+      const segs = 12;
+      for (let i = 0; i < segs; i++) {
+        const a1 = (i / segs) * Math.PI * 2;
+        const a2 = ((i + 1) / segs) * Math.PI * 2;
+        r.push([
+          [Math.cos(a1) * 0.5, Math.sin(a1) * 0.5, -0.8],
+          [Math.cos(a2) * 0.5, Math.sin(a2) * 0.5, -0.8],
+        ]);
+        r.push([
+          [Math.cos(a1) * 0.5, Math.sin(a1) * 0.5, 0.8],
+          [Math.cos(a2) * 0.5, Math.sin(a2) * 0.5, 0.8],
+        ]);
+        if (i % 3 === 0) {
+          r.push([
+            [Math.cos(a1) * 0.5, Math.sin(a1) * 0.5, -0.8],
+            [Math.cos(a1) * 0.5, Math.sin(a1) * 0.5, 0.8],
+          ]);
+        }
+      }
+      return r;
+    }
+    case "bracket": {
+      // Code bracket shape
+      const r: [number,number,number][][] = [];
+      r.push([[-0.6, -1, 0], [-0.8, -0.7, 0]]);
+      r.push([[-0.8, -0.7, 0], [-0.8, 0.7, 0]]);
+      r.push([[-0.8, 0.7, 0], [-0.6, 1, 0]]);
+      r.push([[0.6, -1, 0], [0.8, -0.7, 0]]);
+      r.push([[0.8, -0.7, 0], [0.8, 0.7, 0]]);
+      r.push([[0.8, 0.7, 0], [0.6, 1, 0]]);
+      // Inner dots
+      r.push([[-0.3, 0, 0], [0.3, 0, 0]]);
+      return r;
     }
     default: return [];
   }
@@ -141,156 +204,226 @@ export default function HeroScene() {
     };
     window.addEventListener("mousemove", handleMouse);
 
-    // Muted professional palette - whites, silvers, subtle cool tones
+    // Engineering-themed shapes
     const shapes: Shape[] = [
       {
-        x: 0, y: -30, z: 0,
+        x: 0, y: -25, z: 0,
         rotX: 0, rotY: 0, rotZ: 0,
-        vRotX: 0.006, vRotY: 0.009, vRotZ: 0.002,
-        size: 60, type: "shield",
-        color: "rgba(255, 255, 255, 0.55)",
-        glow: "rgba(255, 255, 255, 0.08)",
-        floatOffset: 0, floatSpeed: 0.6,
+        vRotX: 0.004, vRotY: 0.007, vRotZ: 0.001,
+        size: 120, type: "shield",
+        color: "rgba(255, 255, 255, 0.5)",
+        glow: "rgba(255, 255, 255, 0.12)",
+        floatOffset: 0, floatSpeed: 0.5,
       },
       {
-        x: -140, y: 90, z: 40,
+        x: -260, y: 120, z: 50,
         rotX: 0.3, rotY: 0.5, rotZ: 0,
-        vRotX: 0.007, vRotY: 0.011, vRotZ: 0.004,
-        size: 32, type: "cube",
-        color: "rgba(180, 200, 220, 0.45)",
-        glow: "rgba(180, 200, 220, 0.06)",
-        floatOffset: 1.5, floatSpeed: 0.9,
+        vRotX: 0.005, vRotY: 0.009, vRotZ: 0.003,
+        size: 75, type: "hexgrid",
+        color: "rgba(100, 180, 255, 0.35)",
+        glow: "rgba(100, 180, 255, 0.1)",
+        floatOffset: 1.5, floatSpeed: 0.7,
       },
       {
-        x: 160, y: 70, z: 30,
+        x: 280, y: 90, z: 40,
         rotX: 0, rotY: 0.2, rotZ: 0.4,
-        vRotX: 0.009, vRotY: 0.006, vRotZ: 0.008,
-        size: 28, type: "octahedron",
-        color: "rgba(200, 190, 230, 0.4)",
-        glow: "rgba(200, 190, 230, 0.06)",
-        floatOffset: 3.0, floatSpeed: 0.75,
+        vRotX: 0.007, vRotY: 0.005, vRotZ: 0.006,
+        size: 65, type: "circuit",
+        color: "rgba(60, 200, 120, 0.35)",
+        glow: "rgba(60, 200, 120, 0.1)",
+        floatOffset: 3.0, floatSpeed: 0.65,
       },
       {
-        x: -80, y: -130, z: 70,
+        x: -150, y: -180, z: 60,
         rotX: 1.2, rotY: 0, rotZ: 0,
-        vRotX: 0.004, vRotY: 0.015, vRotZ: 0,
-        size: 42, type: "ring",
-        color: "rgba(180, 220, 210, 0.35)",
-        glow: "rgba(180, 220, 210, 0.05)",
-        floatOffset: 2.0, floatSpeed: 0.65,
+        vRotX: 0.003, vRotY: 0.012, vRotZ: 0,
+        size: 80, type: "node",
+        color: "rgba(255, 180, 50, 0.3)",
+        glow: "rgba(255, 180, 50, 0.09)",
+        floatOffset: 2.0, floatSpeed: 0.6,
       },
       {
-        x: 130, y: -110, z: 50,
+        x: 240, y: -160, z: 55,
         rotX: 0.5, rotY: 0.8, rotZ: 0.2,
-        vRotX: 0.008, vRotY: 0.005, vRotZ: 0.009,
-        size: 24, type: "cube",
-        color: "rgba(210, 200, 190, 0.35)",
-        glow: "rgba(210, 200, 190, 0.05)",
-        floatOffset: 4.0, floatSpeed: 0.8,
+        vRotX: 0.006, vRotY: 0.004, vRotZ: 0.007,
+        size: 55, type: "pipe",
+        color: "rgba(160, 120, 255, 0.3)",
+        glow: "rgba(160, 120, 255, 0.09)",
+        floatOffset: 4.0, floatSpeed: 0.75,
       },
       {
-        x: -160, y: -60, z: 90,
+        x: -280, y: -80, z: 80,
         rotX: 0.2, rotY: 0.3, rotZ: 0.1,
-        vRotX: 0.01, vRotY: 0.007, vRotZ: 0.005,
-        size: 22, type: "pyramid",
-        color: "rgba(190, 210, 230, 0.35)",
-        glow: "rgba(190, 210, 230, 0.05)",
-        floatOffset: 5.0, floatSpeed: 0.7,
+        vRotX: 0.008, vRotY: 0.006, vRotZ: 0.004,
+        size: 50, type: "bracket",
+        color: "rgba(220, 80, 80, 0.3)",
+        glow: "rgba(220, 80, 80, 0.09)",
+        floatOffset: 5.0, floatSpeed: 0.55,
       },
       {
-        x: 60, y: 140, z: 60,
+        x: 80, y: 200, z: 70,
         rotX: 0, rotY: 0.4, rotZ: 0.6,
-        vRotX: 0.006, vRotY: 0.012, vRotZ: 0.003,
-        size: 20, type: "diamond",
-        color: "rgba(220, 215, 230, 0.3)",
-        glow: "rgba(220, 215, 230, 0.04)",
-        floatOffset: 1.0, floatSpeed: 1.0,
+        vRotX: 0.005, vRotY: 0.01, vRotZ: 0.002,
+        size: 45, type: "hexgrid",
+        color: "rgba(100, 200, 180, 0.25)",
+        glow: "rgba(100, 200, 180, 0.06)",
+        floatOffset: 1.0, floatSpeed: 0.85,
       },
       {
-        x: -30, y: 160, z: 100,
+        x: -70, y: 220, z: 90,
         rotX: 0.8, rotY: 0.2, rotZ: 0,
-        vRotX: 0.005, vRotY: 0.008, vRotZ: 0.006,
-        size: 35, type: "ring",
-        color: "rgba(200, 200, 215, 0.25)",
-        glow: "rgba(200, 200, 215, 0.03)",
-        floatOffset: 3.5, floatSpeed: 0.55,
+        vRotX: 0.004, vRotY: 0.007, vRotZ: 0.005,
+        size: 65, type: "circuit",
+        color: "rgba(180, 160, 220, 0.2)",
+        glow: "rgba(180, 160, 220, 0.05)",
+        floatOffset: 3.5, floatSpeed: 0.5,
       },
     ];
 
     const edgesCache: Record<string, [number,number,number][][]> = {};
-    for (const t of ["cube","octahedron","shield","ring","pyramid","diamond"]) {
+    for (const t of ["shield","hexgrid","circuit","node","pipe","bracket"]) {
       edgesCache[t] = getEdges(t);
     }
 
-    // Floating particles for atmosphere
-    const particles: { x: number; y: number; z: number; speed: number; size: number }[] = [];
-    for (let i = 0; i < 40; i++) {
-      particles.push({
-        x: (Math.random() - 0.5) * 600,
-        y: (Math.random() - 0.5) * 600,
-        z: Math.random() * 400,
-        speed: 0.1 + Math.random() * 0.3,
-        size: 0.5 + Math.random() * 1.5,
+    // Data flow particles
+    const dataParticles: { x: number; y: number; z: number; speed: number; size: number; isRetry: boolean }[] = [];
+    for (let i = 0; i < 70; i++) {
+      dataParticles.push({
+        x: (Math.random() - 0.5) * 800,
+        y: (Math.random() - 0.5) * 800,
+        z: Math.random() * 500,
+        speed: 0.15 + Math.random() * 0.35,
+        size: 1.2 + Math.random() * 2.5,
+        isRetry: i % 8 === 0,
       });
     }
 
+    // Hexagonal grid background lines
+    const drawHexGrid = (cx: number, cy: number) => {
+      const hexSize = 70;
+      const cols = Math.ceil(W() / (hexSize * 1.5)) + 2;
+      const rows = Math.ceil(H() / (hexSize * Math.sqrt(3))) + 2;
+      const offsetX = (time * 5) % (hexSize * 1.5);
+      const offsetY = (time * 3) % (hexSize * Math.sqrt(3));
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(100, 180, 255, 0.035)";
+      ctx.lineWidth = 0.9;
+
+      for (let row = -1; row < rows; row++) {
+        for (let col = -1; col < cols; col++) {
+          const x = col * hexSize * 1.5 + offsetX;
+          const y = row * hexSize * Math.sqrt(3) + (col % 2 ? hexSize * Math.sqrt(3) / 2 : 0) + offsetY;
+
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i + Math.PI / 6;
+            const hx = x + hexSize * 0.5 * Math.cos(angle);
+            const hy = y + hexSize * 0.5 * Math.sin(angle);
+            if (i === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    };
+
+    // Circuit board trace overlay
+    const drawCircuitTraces = (cx: number, cy: number) => {
+      ctx.save();
+      ctx.strokeStyle = "rgba(60, 200, 120, 0.03)";
+      ctx.lineWidth = 1.5;
+
+      const traceY = H() * 0.85;
+      const traceSpacing = 90;
+
+      for (let i = 0; i < 12; i++) {
+        const baseX = i * traceSpacing - 80;
+        const jitter = Math.sin(time * 0.5 + i) * 10;
+
+        ctx.beginPath();
+        ctx.moveTo(baseX, traceY);
+        ctx.lineTo(baseX + 30, traceY);
+        ctx.lineTo(baseX + 30 + jitter, traceY - 25);
+        ctx.lineTo(baseX + 75 + jitter, traceY - 25);
+        ctx.lineTo(baseX + 75 + jitter, traceY + 18);
+        ctx.lineTo(baseX + 120 + jitter, traceY + 18);
+        ctx.stroke();
+
+        // Via pad
+        ctx.beginPath();
+        ctx.arc(baseX + 30, traceY, 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    };
+
+    const W = () => canvas.width / (window.devicePixelRatio || 1);
+    const H = () => canvas.height / (window.devicePixelRatio || 1);
+
     const draw = () => {
       time += 0.016;
-      const w = canvas.width / (window.devicePixelRatio || 1);
-      const h = canvas.height / (window.devicePixelRatio || 1);
+      const w = W();
+      const h = H();
       ctx.clearRect(0, 0, w, h);
 
       const cx = w / 2;
       const cy = h / 2;
       const fov = 500;
 
-      // Subtle mouse parallax offset
-      const parallaxX = (mouseX - 0.5) * 20;
-      const parallaxY = (mouseY - 0.5) * 15;
+      // Mouse parallax
+      const parallaxX = (mouseX - 0.5) * 25;
+      const parallaxY = (mouseY - 0.5) * 18;
 
-      // Draw perspective grid floor
+      // Background layers
+      drawHexGrid(cx, cy);
+      drawCircuitTraces(cx, cy);
+
+      // Perspective grid floor
       ctx.save();
       const gridY = h * 0.72;
       const vanishX = cx + parallaxX;
-      const vanishY = h * 0.3 + parallaxY;
-      const gridLines = 14;
-      const gridSpread = w * 1.2;
+      const vanishY = h * 0.28 + parallaxY;
+      const gridLines = 16;
+      const gridSpread = w * 1.1;
 
-      // Horizontal lines receding into distance
       for (let i = 0; i <= gridLines; i++) {
         const t = i / gridLines;
-        const yPos = vanishY + (gridY - vanishY) * Math.pow(t, 0.7);
-        const alpha = t * 0.06;
+        const yPos = vanishY + (gridY - vanishY) * Math.pow(t, 0.65);
+        const alpha = t * 0.05;
         ctx.beginPath();
         ctx.moveTo(0, yPos);
         ctx.lineTo(w, yPos);
-        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
-        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = `rgba(100, 180, 255, ${alpha})`;
+        ctx.lineWidth = 0.8;
         ctx.stroke();
       }
 
-      // Vertical lines converging to vanishing point
-      for (let i = -8; i <= 8; i++) {
-        const baseX = cx + (i / 8) * gridSpread;
-        const alpha = 0.04 * (1 - Math.abs(i) / 10);
+      for (let i = -10; i <= 10; i++) {
+        const baseX = cx + (i / 10) * gridSpread;
+        const alpha = 0.04 * (1 - Math.abs(i) / 12);
         ctx.beginPath();
         ctx.moveTo(vanishX, vanishY);
-        ctx.lineTo(baseX, gridY + 40);
-        ctx.strokeStyle = `rgba(255, 255, 255, ${Math.max(0, alpha)})`;
-        ctx.lineWidth = 0.5;
+        ctx.lineTo(baseX, gridY + 30);
+        ctx.strokeStyle = `rgba(100, 180, 255, ${Math.max(0, alpha)})`;
+        ctx.lineWidth = 0.8;
         ctx.stroke();
       }
       ctx.restore();
 
-      // Draw floating particles
-      for (const p of particles) {
+      // Data flow particles
+      for (const p of dataParticles) {
         p.y -= p.speed;
         if (p.y < -300) p.y = 300;
         const pp = projectPoint(p.x + parallaxX * 0.5, p.y + parallaxY * 0.5, p.z, cx, cy, fov);
-        const alpha = pp.scale * 0.3;
+        const alpha = pp.scale * 0.35;
         ctx.beginPath();
         ctx.arc(pp.sx, pp.sy, p.size * pp.scale, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.fillStyle = p.isRetry
+          ? `rgba(255, 180, 50, ${alpha * 0.7})`
+          : `rgba(100, 180, 255, ${alpha})`;
         ctx.fill();
       }
 
@@ -300,16 +433,16 @@ export default function HeroScene() {
         shape.rotY += shape.vRotY;
         shape.rotZ += shape.vRotZ;
 
-        const floatY = Math.sin(time * shape.floatSpeed + shape.floatOffset) * 14;
+        const floatY = Math.sin(time * shape.floatSpeed + shape.floatOffset) * 12;
         const baseX = shape.x + parallaxX * (1 - shape.z / 400);
         const baseY = shape.y + floatY + parallaxY * (1 - shape.z / 400);
         const baseZ = shape.z;
 
         const edges = edgesCache[shape.type];
 
-        // Draw glow
+        // Glow
         const gp = projectPoint(baseX, baseY, baseZ, cx, cy, fov);
-        const glowR = shape.size * 3 * gp.scale;
+        const glowR = shape.size * 4.5 * gp.scale;
         const grad = ctx.createRadialGradient(gp.sx, gp.sy, 0, gp.sx, gp.sy, glowR);
         grad.addColorStop(0, shape.glow);
         grad.addColorStop(1, "transparent");
@@ -320,7 +453,7 @@ export default function HeroScene() {
 
         // Project and draw edges
         ctx.strokeStyle = shape.color;
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.8;
         ctx.lineCap = "round";
 
         const projected: { x1: number; y1: number; x2: number; y2: number }[] = [];
@@ -353,7 +486,7 @@ export default function HeroScene() {
             if (!seen.has(k)) {
               seen.add(k);
               ctx.beginPath();
-              ctx.arc(px, py, 1.8, 0, Math.PI * 2);
+              ctx.arc(px, py, 3, 0, Math.PI * 2);
               ctx.fillStyle = shape.color;
               ctx.fill();
             }
@@ -361,14 +494,14 @@ export default function HeroScene() {
         }
       }
 
-      // Subtle scan line effect
-      const scanY = (time * 40) % h;
-      const scanGrad = ctx.createLinearGradient(0, scanY - 30, 0, scanY + 30);
+      // Scan line
+      const scanY = (time * 45) % h;
+      const scanGrad = ctx.createLinearGradient(0, scanY - 70, 0, scanY + 70);
       scanGrad.addColorStop(0, "transparent");
-      scanGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.015)");
+      scanGrad.addColorStop(0.5, "rgba(100, 180, 255, 0.02)");
       scanGrad.addColorStop(1, "transparent");
       ctx.fillStyle = scanGrad;
-      ctx.fillRect(0, scanY - 30, w, 60);
+      ctx.fillRect(0, scanY - 70, w, 140);
 
       animId = requestAnimationFrame(draw);
     };

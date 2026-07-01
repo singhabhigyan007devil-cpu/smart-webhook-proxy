@@ -10,7 +10,7 @@ function extractError(detail: unknown, fallback: string): string {
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Tilt from "react-parallax-tilt";
-import TechBackground from "./components/TechBackground";
+import MinimalBackground from "./components/MinimalBackground";
 import { 
   Shield, 
   Activity, 
@@ -810,6 +810,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!e.key) return;
       const activeTag = document.activeElement?.tagName.toLowerCase();
       const isInputActive = activeTag === "input" || activeTag === "textarea";
 
@@ -2744,8 +2745,8 @@ export default function Dashboard() {
   // --- Render Dashboard Screen ---
   return (
     <div className="min-h-screen bg-canvas flex flex-col font-sans selection:bg-primary selection:text-black relative">
-      {/* 0. Animated 3D Tech Background */}
-      <TechBackground />
+      {/* Subtle animated background */}
+      <MinimalBackground />
       {/* 1. Header (Top Navigation) */}
       <header className="h-[56px] border-b border-hairline bg-canvas/80 backdrop-blur sticky top-0 z-40 flex items-center justify-between px-6">
         <div className="flex items-center space-x-3">
