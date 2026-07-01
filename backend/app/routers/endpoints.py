@@ -11,7 +11,7 @@ from backend.app.db import get_db
 from backend.app.models import User, Endpoint, WebhookLog
 from backend.app.schemas import (
     EndpointCreate, EndpointUpdate, EndpointResponse,
-    WebhookLogResponse, DashboardMetrics
+    WebhookLogResponse, WebhookLogUpdate, DashboardMetrics
 )
 from backend.app.cache import slug_cache
 from backend.app.tasks import enqueue_webhook_task
@@ -181,6 +181,8 @@ async def update_endpoint(
         endpoint.idempotency_strategy = payload.idempotency_strategy
     if payload.idempotency_ttl is not None:
         endpoint.idempotency_ttl = payload.idempotency_ttl
+    if payload.rate_limit_rpm is not None:
+        endpoint.rate_limit_rpm = payload.rate_limit_rpm
 
             
     await db.commit()
@@ -254,6 +256,40 @@ async def list_all_logs(
         .limit(limit)
     )
     return logs_result.scalars().all()
+
+@router.patch("/logs/{log_id}", response_model=WebhookLogResponse)
+async def update_log_payload(
+    log_id: str,
+    payload: WebhookLogUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Verify ownership of the log
+    log_result = await db.execute(
+        select(WebhookLog)
+        .join(Endpoint, WebhookLog.endpoint_id == Endpoint.id)
+        .where(WebhookLog.id == log_id, Endpoint.user_id == current_user.id)
+    )
+    log = log_result.scalars().first()
+    
+    if not log:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Log not found"
+        )
+        
+    # Only allow editing payload if it's failed or dropped, not successful
+    if log.delivery_status == "success":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot edit the payload of a successful webhook delivery."
+        )
+
+    log.payload_string = payload.payload_string
+    await db.commit()
+    await db.refresh(log)
+    
+    return log
 
 # --- Dashboard Metrics ---
 @router.get("/metrics", response_model=DashboardMetrics)

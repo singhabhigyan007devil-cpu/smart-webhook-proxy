@@ -39,6 +39,7 @@ class EndpointBase(BaseModel):
     backoff_base: Optional[int] = None
     idempotency_strategy: Optional[str] = "auto"
     idempotency_ttl: Optional[int] = 86400
+    rate_limit_rpm: Optional[int] = 600
 
 class EndpointCreate(EndpointBase):
     slug: Optional[str] = None  # Will auto-generate slug if not provided
@@ -54,6 +55,7 @@ class EndpointUpdate(BaseModel):
     backoff_base: Optional[int] = None
     idempotency_strategy: Optional[str] = None
     idempotency_ttl: Optional[int] = None
+    rate_limit_rpm: Optional[int] = None
 
 class EndpointResponse(EndpointBase):
     id: str
@@ -73,6 +75,10 @@ class EndpointResponse(EndpointBase):
     model_config = ConfigDict(from_attributes=True)
 
 # --- Webhook Log Schemas ---
+class WebhookLogUpdate(BaseModel):
+    payload_string: str
+
+
 class WebhookLogResponse(BaseModel):
     id: str
     endpoint_id: str

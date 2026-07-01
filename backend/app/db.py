@@ -2,7 +2,15 @@ from typing import AsyncGenerator
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
+import redis.asyncio as aioredis
 from backend.app.config import settings
+
+# Global Redis Client
+redis_client = aioredis.from_url(
+    settings.REDIS_URL,
+    encoding="utf-8",
+    decode_responses=True
+)
 
 # For SQLite, we might need special args for concurrency (e.g. check_same_thread)
 connect_args = {}

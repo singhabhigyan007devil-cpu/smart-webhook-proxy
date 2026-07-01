@@ -209,6 +209,8 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(null);
   const [selectedLog, setSelectedLog] = useState<WebhookLog | null>(null);
+  const [isEditingPayload, setIsEditingPayload] = useState(false);
+  const [editedPayloadString, setEditedPayloadString] = useState("");
   const [copiedSlugId, setCopiedSlugId] = useState<string | null>(null);
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
   
@@ -596,6 +598,28 @@ export default function Dashboard() {
     }
   };
 
+  const handleBulkReplay = async (id: string) => {
+    if (!apiKey) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/issues/${id}/bulk-replay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Bulk replay initiated! ${data.count} webhooks queued.`);
+        fetchData();
+      } else {
+        alert("Failed to initiate bulk replay.");
+      }
+    } catch (err) {
+      console.error("Failed to bulk replay", err);
+    }
+  };
+
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedIncident || !newCommentBody.trim()) return;
@@ -747,6 +771,27 @@ export default function Dashboard() {
   const showCommandMenuRef = React.useRef(showCommandMenu);
   const showShortcutsModalRef = React.useRef(showShortcutsModal);
   const selectedIncidentRef = React.useRef(selectedIncident);
+
+  const handleUpdatePayload = async () => {
+    if (!selectedLog) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/logs/${selectedLog.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ payload_string: editedPayloadString })
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setSelectedLog(updated);
+        setIsEditingPayload(false);
+        setLogs(prev => prev.map(l => l.id === updated.id ? updated : l));
+      } else {
+        alert("Failed to update payload");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     showCommandMenuRef.current = showCommandMenu;
@@ -3328,7 +3373,11 @@ export default function Dashboard() {
                         return (
                           <tr 
                             key={log.id}
-                            onClick={() => setSelectedLog(log)}
+                            onClick={() => {
+                              setSelectedLog(log);
+                              setIsEditingPayload(false);
+                              setEditedPayloadString(log.payload_string);
+                            }}
                             className={`hover:bg-surface-2/30 cursor-pointer transition-colors duration-100 ${
                               selectedLog?.id === log.id ? "bg-surface-2/50" : ""
                             }`}
@@ -3553,21 +3602,46 @@ export default function Dashboard() {
 
               {/* Payload Raw Section */}
               <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-ink-subtle uppercase tracking-wider">
-                  Ingested Body String ( cryptographic preserve )
-                </h4>
-                <div className="bg-canvas border border-hairline rounded-lg p-4 overflow-x-auto font-mono text-[11px] leading-relaxed text-blue-300">
-                  <pre className="whitespace-pre-wrap">
-                    {(() => {
-                      try {
-                        const parsed = JSON.parse(selectedLog.payload_string);
-                        return JSON.stringify(parsed, null, 2);
-                      } catch {
-                        return selectedLog.payload_string;
-                      }
-                    })()}
-                  </pre>
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-semibold text-ink-subtle uppercase tracking-wider">
+                    Ingested Body String ( cryptographic preserve )
+                  </h4>
+                  {selectedLog.delivery_status !== "success" && (
+                    <button 
+                      onClick={() => {
+                        if (isEditingPayload) {
+                          handleUpdatePayload();
+                        } else {
+                          setEditedPayloadString(selectedLog.payload_string);
+                          setIsEditingPayload(true);
+                        }
+                      }}
+                      className="text-[10px] bg-surface-2 hover:bg-primary/20 text-ink-subtle hover:text-primary px-2 py-1 rounded border border-primary/20 transition-colors"
+                    >
+                      {isEditingPayload ? "Save Payload" : "Edit (DLQ)"}
+                    </button>
+                  )}
                 </div>
+                {isEditingPayload ? (
+                  <textarea
+                    value={editedPayloadString}
+                    onChange={(e) => setEditedPayloadString(e.target.value)}
+                    className="w-full h-48 bg-canvas border border-primary/50 rounded-lg p-4 font-mono text-[11px] leading-relaxed text-blue-300 focus:outline-none focus:border-primary resize-y"
+                  />
+                ) : (
+                  <div className="bg-canvas border border-hairline rounded-lg p-4 overflow-x-auto font-mono text-[11px] leading-relaxed text-blue-300">
+                    <pre className="whitespace-pre-wrap">
+                      {(() => {
+                        try {
+                          const parsed = JSON.parse(selectedLog.payload_string);
+                          return JSON.stringify(parsed, null, 2);
+                        } catch {
+                          return selectedLog.payload_string;
+                        }
+                      })()}
+                    </pre>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -3585,9 +3659,18 @@ export default function Dashboard() {
           <>
             {/* Drawer Header */}
             <div className="h-[56px] border-b border-hairline bg-surface-2 flex items-center justify-between px-6 shrink-0">
-              <div className="flex items-center space-x-2">
-                <Layers className="w-4 h-4 text-primary" />
-                <span className="font-semibold text-sm text-ink">Incident Details</span>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Layers className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-sm text-ink">Incident Details</span>
+                </div>
+                <button 
+                  onClick={() => handleBulkReplay(selectedIncident.id)}
+                  className="px-3 py-1 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/90 transition-colors flex items-center"
+                  title="Re-enqueue all failed webhooks for this incident endpoint"
+                >
+                  Replay All Failed
+                </button>
               </div>
               <button 
                 onClick={() => setSelectedIncident(null)}

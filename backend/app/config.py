@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./hookshield.db"
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     # SMTP Mailer Settings
     SMTP_HOST: str = "smtp.gmail.com"

@@ -48,6 +48,7 @@ class Endpoint(Base):
     backoff_base = Column(Integer, nullable=True)
     idempotency_strategy = Column(String(50), default="auto", nullable=False)
     idempotency_ttl = Column(Integer, default=86400, nullable=False)
+    rate_limit_rpm = Column(Integer, default=600, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="endpoints")

@@ -124,6 +124,55 @@ async def update_issue(
 
     return issue
 
+@router.post("/issues/{issue_id}/bulk-replay", status_code=status.HTTP_200_OK)
+async def bulk_replay_issue_logs(
+    issue_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(Issue).where(Issue.id == issue_id, Issue.user_id == current_user.id)
+    result = await db.execute(query)
+    issue = result.scalars().first()
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+        
+    logs_query = select(WebhookLog).where(
+        WebhookLog.endpoint_id == issue.endpoint_id,
+        WebhookLog.delivery_status.in_(["failed", "dropped"])
+    )
+    logs_result = await db.execute(logs_query)
+    failed_logs = logs_result.scalars().all()
+    
+    from backend.app.tasks import enqueue_webhook_task
+    enqueued_count = 0
+    for log in failed_logs:
+        await enqueue_webhook_task(
+            endpoint_id=log.endpoint_id,
+            payload_string=log.payload_string,
+            headers=log.headers_json,
+            retry_count=0
+        )
+        log.delivery_status = "pending"
+        log.retry_count = 0
+        log.error_message = "Re-enqueued via Bulk Replay"
+        enqueued_count += 1
+        
+    issue.status = "in_progress"
+    await db.commit()
+    
+    # Broadcast issue update
+    try:
+        from backend.app.websockets import manager
+        await manager.broadcast({
+            "event": "issue_updated",
+            "data": IssueResponse.model_validate(issue).model_dump()
+        })
+    except Exception as ws_err:
+        print(f"[WS BULK REPLAY ERROR] Failed to broadcast: {ws_err}")
+    
+    return {"detail": f"Successfully re-enqueued {enqueued_count} failed webhooks.", "count": enqueued_count}
+
+
 # --- Issue Comments Endpoints ---
 
 @router.get("/issues/{issue_id}/comments", response_model=List[IssueCommentResponse])

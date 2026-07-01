@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import time
 import hmac
 import hashlib
-from backend.app.db import get_db
+from backend.app.db import get_db, redis_client
 from backend.app.cache import slug_cache
 from backend.app.tasks import enqueue_webhook_task
 
@@ -67,6 +67,29 @@ async def ingest_webhook(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Webhook proxy endpoint is paused (circuit breaker tripped or admin disabled)"
         )
+
+    # 4.5 API Rate Limiting Check (Redis-based)
+    rate_limit = endpoint_data.get("rate_limit_rpm", 600)
+    if rate_limit > 0:
+        current_minute = int(time.time() / 60)
+        rate_key = f"rate_limit:{endpoint_data['id']}:{current_minute}"
+        try:
+            async with redis_client.pipeline(transaction=True) as pipe:
+                pipe.incr(rate_key)
+                pipe.expire(rate_key, 120)
+                results = await pipe.execute()
+            
+            current_count = results[0]
+            if current_count > rate_limit:
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too Many Requests: Endpoint rate limit exceeded"
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Fail open if Redis is unreachable
+            print(f"[RATE_LIMIT_ERROR] Failed to check rate limit: {e}")
 
     # 5. Extract headers
     headers = dict(request.headers)

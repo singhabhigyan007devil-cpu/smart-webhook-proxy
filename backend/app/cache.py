@@ -32,7 +32,8 @@ class SlugCache:
             "id": endpoint.id,
             "target_url": endpoint.target_url,
             "secret_token": endpoint.secret_token,
-            "active_state": endpoint.active_state
+            "active_state": endpoint.active_state,
+            "rate_limit_rpm": getattr(endpoint, "rate_limit_rpm", 600)
         }
         
         self.cache[slug] = {
