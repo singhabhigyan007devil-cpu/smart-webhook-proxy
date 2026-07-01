@@ -472,3 +472,8 @@ class AnalyticsBurndownPoint(BaseModel):
 
 class AnalyticsBurndownResponse(BaseModel):
     data: List[AnalyticsBurndownPoint]
+
+class QueueHealthResponse(BaseModel):
+    queued_jobs_count: int
+    status: str
+

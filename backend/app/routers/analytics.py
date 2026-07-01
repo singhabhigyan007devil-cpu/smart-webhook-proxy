@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 
 from backend.app.db import get_db
 from backend.app.models import User, WebhookLog, Endpoint, Issue
-from backend.app.schemas import AnalyticsKPIs, AnalyticsTimeSeriesResponse, AnalyticsTimeSeriesPoint, AnalyticsVelocityResponse, AnalyticsVelocityPoint, AnalyticsBurndownResponse, AnalyticsBurndownPoint
+from backend.app.schemas import AnalyticsKPIs, AnalyticsTimeSeriesResponse, AnalyticsTimeSeriesPoint, AnalyticsVelocityResponse, AnalyticsVelocityPoint, AnalyticsBurndownResponse, AnalyticsBurndownPoint, QueueHealthResponse
+from backend.app.tasks import get_redis_pool
 from backend.app.routers.endpoints import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -155,3 +156,21 @@ async def get_burndown(
         ))
         
     return AnalyticsBurndownResponse(data=data)
+
+@router.get("/queue-health", response_model=QueueHealthResponse)
+async def get_queue_health(
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        pool = await get_redis_pool()
+        # ARQ stores the main queue in a zset by default named "arq:queue"
+        count = await pool.zcard("arq:queue")
+        
+        status_label = "healthy"
+        if count >= 100:
+            status_label = "degraded"
+            
+        return QueueHealthResponse(queued_jobs_count=count, status=status_label)
+    except Exception as e:
+        print(f"[QUEUE HEALTH ERROR] {e}")
+        return QueueHealthResponse(queued_jobs_count=0, status="degraded")

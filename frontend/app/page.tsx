@@ -271,6 +271,7 @@ export default function Dashboard() {
   // Analytics States
   const [analyticsKPIs, setAnalyticsKPIs] = useState<AnalyticsKPIs | null>(null);
   const [analyticsTimeSeries, setAnalyticsTimeSeries] = useState<AnalyticsTimeSeriesPoint[]>([]);
+  const [queueHealth, setQueueHealth] = useState<{queued_jobs_count: number, status: string} | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
   const [analyticsDaysFilter, setAnalyticsDaysFilter] = useState(30);
 
@@ -512,9 +513,10 @@ export default function Dashboard() {
     setIsLoadingAnalytics(true);
     try {
       const headers = { "Authorization": `Bearer ${apiKey}` };
-      const [kpiRes, tsRes] = await Promise.all([
+      const [kpiRes, tsRes, qhRes] = await Promise.all([
         fetch(`${API_BASE}/api/analytics/kpis`, { headers }),
-        fetch(`${API_BASE}/api/analytics/timeseries?days=${analyticsDaysFilter}`, { headers })
+        fetch(`${API_BASE}/api/analytics/timeseries?days=${analyticsDaysFilter}`, { headers }),
+        fetch(`${API_BASE}/api/analytics/queue-health`, { headers })
       ]);
       
       if (kpiRes.ok) {
@@ -523,6 +525,9 @@ export default function Dashboard() {
       if (tsRes.ok) {
         const tsData = await tsRes.json();
         setAnalyticsTimeSeries(tsData.data || []);
+      }
+      if (qhRes.ok) {
+        setQueueHealth(await qhRes.json());
       }
     } catch (err) {
       console.error("Error fetching analytics", err);
@@ -2469,7 +2474,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-surface-1 border border-hairline rounded-lg p-5">
             <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Total Volume</span>
             <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
@@ -2486,6 +2491,31 @@ export default function Dashboard() {
             <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Avg Latency</span>
             <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
               {analyticsKPIs?.avg_latency_ms || 0} ms
+            </h2>
+          </div>
+          <div className="bg-surface-1 border border-hairline rounded-lg p-5">
+            <div className="flex justify-between items-start">
+              <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Queue Depth</span>
+              {queueHealth?.status === "healthy" ? (
+                <div className="flex items-center space-x-1.5 bg-green-500/10 text-green-400 px-2 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider border border-green-500/20">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+                  </span>
+                  <span>Healthy</span>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-1.5 bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider border border-yellow-500/20">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-yellow-500"></span>
+                  </span>
+                  <span>Degraded</span>
+                </div>
+              )}
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
+              {queueHealth?.queued_jobs_count?.toLocaleString() || 0}
             </h2>
           </div>
         </div>
