@@ -8,6 +8,9 @@ function extractError(detail: unknown, fallback: string): string {
 }
 
 import React, { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import Tilt from "react-parallax-tilt";
+import TechBackground from "./components/TechBackground";
 import { 
   Shield, 
   Activity, 
@@ -408,7 +411,7 @@ export default function Dashboard() {
             color: cleanColor,
             backgroundColor: `hsla(${values}, 0.15)`
           },
-          className: "border px-1.5 py-0.5 rounded text-[9px] uppercase font-semibold"
+          className: "border px-1.5 py-0.5 rounded-md text-[9px] uppercase font-semibold"
         };
       }
       return {
@@ -417,7 +420,7 @@ export default function Dashboard() {
           color: cleanColor,
           backgroundColor: cleanColor + "20"
         },
-        className: "border px-1.5 py-0.5 rounded text-[9px] uppercase font-semibold"
+        className: "border px-1.5 py-0.5 rounded-md text-[9px] uppercase font-semibold"
       };
     }
     let badgeClass = "border border-hairline text-ink-subtle bg-surface-2";
@@ -425,7 +428,7 @@ export default function Dashboard() {
     if (p === "urgent") badgeClass = "border border-red-500/30 text-red-400 bg-red-950/20";
     else if (p === "high") badgeClass = "border border-orange-500/30 text-orange-400 bg-orange-950/20";
     else if (p === "medium") badgeClass = "border border-amber-500/30 text-amber-400 bg-amber-950/20";
-    return { className: `${badgeClass} text-[9px] uppercase font-semibold px-1.5 py-0.5 rounded` };
+    return { className: `${badgeClass} text-[9px] uppercase font-semibold px-1.5 py-0.5 rounded-md` };
   };
 
   // --- Data Fetching ---
@@ -1530,7 +1533,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col space-y-4 bg-canvas p-4 min-h-[500px]">
         {/* Gantt Timeline Container with horizontal scroll */}
-        <div className="border border-hairline rounded bg-surface-1/40 overflow-x-auto relative flex flex-col">
+        <div className="border border-hairline rounded-md bg-surface-1/40 overflow-x-auto relative flex flex-col">
           
           {/* Header Row: Month / Day headers */}
           <div className="flex" style={{ minWidth: `${240 + totalTimelineDays * 24}px` }}>
@@ -1629,7 +1632,7 @@ export default function Dashboard() {
                           setMilestoneProjectID(proj.id);
                           setShowCreateMilestoneModal(true);
                         }}
-                        className="text-[8px] bg-primary/10 hover:bg-primary text-primary hover:text-ink font-semibold px-1.5 py-0.5 rounded border border-primary/20 hover:border-transparent transition-all"
+                        className="text-[8px] bg-primary/10 hover:bg-primary text-primary hover:text-black font-semibold px-1.5 py-0.5 rounded-md border border-primary/20 hover:border-transparent transition-all"
                       >
                         + Milestone
                       </button>
@@ -1659,7 +1662,7 @@ export default function Dashboard() {
                     {/* Timeline Track Bar */}
                     <div 
                       style={{ left: leftPx, width: widthPx }}
-                      className={`absolute h-7 rounded flex items-center px-2 text-[9px] font-medium transition-all ${
+                      className={`absolute h-7 rounded-md flex items-center px-2 text-[9px] font-medium transition-all ${
                         hasTargetDate 
                           ? "bg-primary/15 border border-primary/30 hover:bg-primary/20 text-primary shadow-sm" 
                           : "bg-surface-3/30 border border-dashed border-hairline hover:bg-surface-3/40 text-ink-subtle"
@@ -1706,7 +1709,7 @@ export default function Dashboard() {
                           </div>
 
                           {/* Hover Tooltip */}
-                          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-surface-1 border border-hairline shadow-xl rounded p-2 z-50 text-[10px] w-40 text-ink font-sans space-y-1">
+                          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-surface-1 border border-hairline shadow-xl rounded-md p-2 z-50 text-[10px] w-40 text-ink font-sans space-y-1">
                             <div className="font-semibold truncate text-primary">{m.name}</div>
                             {m.description && <div className="text-ink-subtle text-[9px] line-clamp-2 leading-relaxed">{m.description}</div>}
                             <div className="flex justify-between items-center pt-1 border-t border-hairline text-[8px] text-ink-tertiary">
@@ -1744,7 +1747,7 @@ export default function Dashboard() {
                           <div className="w-2.5 h-2.5 rounded-full bg-red-500 border border-red-600 animate-pulse shadow-sm hover:scale-125 transition-transform" />
                           
                           {/* Incident Hover Tooltip */}
-                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-surface-1 border border-hairline shadow-xl rounded p-2 z-50 text-[10px] w-44 text-ink font-sans space-y-1">
+                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 hidden group-hover:flex flex-col bg-surface-1 border border-hairline shadow-xl rounded-md p-2 z-50 text-[10px] w-44 text-ink font-sans space-y-1">
                             <div className="font-semibold text-red-400 truncate">Webhook Failure</div>
                             <div className="text-ink line-clamp-2 leading-tight">{inc.title}</div>
                             <div className="flex justify-between items-center pt-1 border-t border-hairline text-[8px] text-ink-tertiary font-mono">
@@ -1795,7 +1798,7 @@ export default function Dashboard() {
               placeholder="Search incidents by title, slug..." 
               value={boardSearchQuery}
               onChange={(e) => setBoardSearchQuery(e.target.value)}
-              className="w-full bg-surface-2 text-ink text-xs rounded border border-hairline pl-9 pr-2.5 py-1.5 focus:outline-none focus:border-primary-focus transition-all placeholder:text-ink-tertiary"
+              className="w-full bg-surface-2 text-ink text-xs rounded-md border border-hairline pl-9 pr-2.5 py-1.5 focus:outline-none focus:border-primary-focus transition-all placeholder:text-ink-tertiary"
             />
           </div>
 
@@ -1805,7 +1808,7 @@ export default function Dashboard() {
             <select 
               value={boardPriorityFilter}
               onChange={(e) => setBoardPriorityFilter(e.target.value)}
-              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer uppercase"
+              className="bg-surface-2 text-ink text-xs rounded-md border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer uppercase"
             >
               <option value="all">All Priorities</option>
               {severityPriorities.length > 0 ? (
@@ -1830,7 +1833,7 @@ export default function Dashboard() {
             <select 
               value={boardAssigneeFilter}
               onChange={(e) => setBoardAssigneeFilter(e.target.value)}
-              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer"
+              className="bg-surface-2 text-ink text-xs rounded-md border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer"
             >
               <option value="all">All Assignees</option>
               <option value="unassigned">Unassigned</option>
@@ -1849,7 +1852,7 @@ export default function Dashboard() {
               setBoardPriorityFilter("all");
               setBoardAssigneeFilter("all");
             }}
-            className="text-[10px] hover:text-primary border border-dashed border-hairline hover:border-primary/30 rounded px-2.5 py-1.5 font-medium text-ink-subtle hover:bg-primary/5 transition-all w-fit shrink-0"
+            className="text-[10px] hover:text-primary border border-dashed border-hairline hover:border-primary/30 rounded-md px-2.5 py-1.5 font-medium text-ink-subtle hover:bg-primary/5 transition-all w-fit shrink-0"
           >
             Clear Filters
           </button>
@@ -1873,7 +1876,7 @@ export default function Dashboard() {
               setChannelCreateError("");
               setShowCreateChannelModal(true);
             }}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-ink font-semibold border border-primary-focus/50 transition-colors shadow-sm select-none"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-black font-semibold border border-transparent transition-colors shadow-sm select-none"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Channel</span>
@@ -1901,7 +1904,7 @@ export default function Dashboard() {
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2">
                         <span className="text-xs font-semibold text-ink">{channel.name}</span>
-                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded border uppercase font-medium ${
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded-md border uppercase font-medium ${
                           channel.channel_type === "slack" 
                             ? "bg-purple-950/20 border-purple-500/30 text-purple-400" 
                             : channel.channel_type === "discord"
@@ -1940,7 +1943,7 @@ export default function Dashboard() {
                       <button 
                         onClick={() => handleTestAlertChannel(channel.id)}
                         disabled={isTestingChannelId !== null}
-                        className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 hover:border-hairline-strong text-ink-subtle hover:text-ink px-2.5 py-1 rounded font-medium transition-colors"
+                        className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 hover:border-hairline-strong text-ink-subtle hover:text-ink px-2.5 py-1 rounded-md font-medium transition-colors"
                       >
                         {isTestingChannelId === channel.id ? "Testing..." : "Test Alert"}
                       </button>
@@ -1951,13 +1954,13 @@ export default function Dashboard() {
                               handleDeleteAlertChannel(channel.id);
                               setConfirmDeleteChannelId(null);
                             }}
-                            className="text-[10px] bg-red-950/40 border border-red-900/50 hover:bg-red-900/60 text-red-400 px-2 py-0.5 rounded transition-colors font-medium"
+                            className="text-[10px] bg-red-950/40 border border-red-900/50 hover:bg-red-900/60 text-red-400 px-2 py-0.5 rounded-md transition-colors font-medium"
                           >
                             Yes
                           </button>
                           <button
                             onClick={() => setConfirmDeleteChannelId(null)}
-                            className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink px-2 py-0.5 rounded transition-colors font-medium"
+                            className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink px-2 py-0.5 rounded-md transition-colors font-medium"
                           >
                             No
                           </button>
@@ -1965,7 +1968,7 @@ export default function Dashboard() {
                       ) : (
                         <button 
                           onClick={() => setConfirmDeleteChannelId(channel.id)}
-                          className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded transition-colors"
+                          className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded-md transition-colors"
                         >
                           Delete
                         </button>
@@ -2000,7 +2003,7 @@ export default function Dashboard() {
               setPriorityCreateError("");
               setShowCreatePriorityModal(true);
             }}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-ink font-semibold border border-primary-focus/50 transition-colors shadow-sm select-none"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-black font-semibold border border-transparent transition-colors shadow-sm select-none"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Severity Level</span>
@@ -2040,7 +2043,7 @@ export default function Dashboard() {
                         min="1"
                         value={pri.threshold_failures}
                         onChange={(e) => handleUpdateSeverityPriority(pri.id, { threshold_failures: parseInt(e.target.value) || 1 })}
-                        className="w-12 bg-surface-2 text-ink text-xs rounded border border-hairline px-1.5 py-1 text-center focus:outline-none focus:border-primary font-mono"
+                        className="w-12 bg-surface-2 text-ink text-xs rounded-md border border-hairline px-1.5 py-1 text-center focus:outline-none focus:border-primary font-mono"
                       />
                     </div>
 
@@ -2051,7 +2054,7 @@ export default function Dashboard() {
                         type="number" 
                         value={pri.rank}
                         onChange={(e) => handleUpdateSeverityPriority(pri.id, { rank: parseInt(e.target.value) || 0 })}
-                        className="w-12 bg-surface-2 text-ink text-xs rounded border border-hairline px-1.5 py-1 text-center focus:outline-none focus:border-primary font-mono"
+                        className="w-12 bg-surface-2 text-ink text-xs rounded-md border border-hairline px-1.5 py-1 text-center focus:outline-none focus:border-primary font-mono"
                       />
                     </div>
 
@@ -2061,7 +2064,7 @@ export default function Dashboard() {
                       <select
                         value={pri.alert_channel_id || "none"}
                         onChange={(e) => handleUpdateSeverityPriority(pri.id, { alert_channel_id: e.target.value })}
-                        className="bg-surface-2 text-ink text-[11px] rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary cursor-pointer max-w-[130px]"
+                        className="bg-surface-2 text-ink text-[11px] rounded-md border border-hairline px-2 py-1 focus:outline-none focus:border-primary cursor-pointer max-w-[130px]"
                       >
                         <option value="none">All Active Channels</option>
                         {alertChannels.map(c => (
@@ -2079,13 +2082,13 @@ export default function Dashboard() {
                               handleDeleteSeverityPriority(pri.id);
                               setConfirmDeletePriorityId(null);
                             }}
-                            className="text-[10px] bg-red-950/40 border border-red-900/50 hover:bg-red-900/60 text-red-400 px-2 py-0.5 rounded transition-colors font-medium"
+                            className="text-[10px] bg-red-950/40 border border-red-900/50 hover:bg-red-900/60 text-red-400 px-2 py-0.5 rounded-md transition-colors font-medium"
                           >
                             Yes
                           </button>
                           <button
                             onClick={() => setConfirmDeletePriorityId(null)}
-                            className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink px-2 py-0.5 rounded transition-colors font-medium"
+                            className="text-[10px] bg-surface-2 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink px-2 py-0.5 rounded-md transition-colors font-medium"
                           >
                             No
                           </button>
@@ -2093,7 +2096,7 @@ export default function Dashboard() {
                       ) : (
                         <button 
                           onClick={() => setConfirmDeletePriorityId(pri.id)}
-                          className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded transition-colors"
+                          className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded-md transition-colors"
                         >
                           Delete
                         </button>
@@ -2124,7 +2127,7 @@ export default function Dashboard() {
               setStatusCreateError("");
               setShowCreateStatusModal(true);
             }}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-ink font-semibold border border-primary-focus/50 transition-colors shadow-sm select-none"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-black font-semibold border border-transparent transition-colors shadow-sm select-none"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Status</span>
@@ -2146,7 +2149,7 @@ export default function Dashboard() {
                 </div>
                 <button 
                   onClick={() => handleDeleteWorkflowStatus(ws.id)}
-                  className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded transition-colors"
+                  className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded-md transition-colors"
                 >
                   Delete
                 </button>
@@ -2173,7 +2176,7 @@ export default function Dashboard() {
               setFieldCreateError("");
               setShowCreateFieldModal(true);
             }}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-ink font-semibold border border-primary-focus/50 transition-colors shadow-sm select-none"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs text-black font-semibold border border-transparent transition-colors shadow-sm select-none"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Field</span>
@@ -2192,7 +2195,7 @@ export default function Dashboard() {
                 </div>
                 <button 
                   onClick={() => handleDeleteCustomField(cf.id)}
-                  className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded transition-colors"
+                  className="text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/5 px-2 py-1 rounded-md transition-colors"
                 >
                   Delete
                 </button>
@@ -2215,27 +2218,27 @@ export default function Dashboard() {
               <Layers className="w-4 h-4 text-primary" />
               <span>Add Custom Workflow Status</span>
             </h2>
-            <button onClick={() => setShowCreateStatusModal(false)} className="p-1 hover:bg-surface-2 rounded text-ink-subtle hover:text-ink transition-colors">
+            <button onClick={() => setShowCreateStatusModal(false)} className="p-1 hover:bg-surface-2 rounded-md text-ink-subtle hover:text-ink transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
           <form onSubmit={handleCreateWorkflowStatus} className="space-y-4 font-mono text-xs">
-            {statusCreateError && <div className="p-2 border border-red-500/20 text-red-400 bg-red-950/20 rounded text-[11px]">{statusCreateError}</div>}
+            {statusCreateError && <div className="p-2 border border-red-500/20 text-red-400 bg-red-950/20 rounded-md text-[11px]">{statusCreateError}</div>}
             <div className="flex flex-col space-y-1.5">
               <label className="text-ink-subtle">Status Name</label>
-              <input type="text" required placeholder="e.g. Backlog, Testing" value={newStatusName} onChange={(e) => setNewStatusName(e.target.value)} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
+              <input type="text" required placeholder="e.g. Backlog, Testing" value={newStatusName} onChange={(e) => setNewStatusName(e.target.value)} className="bg-canvas text-ink text-xs rounded-md border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
             </div>
             <div className="flex flex-col space-y-1.5">
               <label className="text-ink-subtle">Color</label>
-              <input type="text" placeholder="e.g. #ff0055, HSL(120, 50%, 50%)" value={newStatusColor} onChange={(e) => setNewStatusColor(e.target.value)} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
+              <input type="text" placeholder="e.g. #ff0055, HSL(120, 50%, 50%)" value={newStatusColor} onChange={(e) => setNewStatusColor(e.target.value)} className="bg-canvas text-ink text-xs rounded-md border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
             </div>
             <div className="flex flex-col space-y-1.5">
               <label className="text-ink-subtle">Order Index</label>
-              <input type="number" value={newStatusOrderIndex} onChange={(e) => setNewStatusOrderIndex(parseInt(e.target.value) || 0)} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
+              <input type="number" value={newStatusOrderIndex} onChange={(e) => setNewStatusOrderIndex(parseInt(e.target.value) || 0)} className="bg-canvas text-ink text-xs rounded-md border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
             </div>
             <div className="pt-2 flex justify-end space-x-2">
-              <button type="button" onClick={() => setShowCreateStatusModal(false)} className="px-4 py-2 border border-hairline rounded bg-surface-2 hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors">Cancel</button>
-              <button type="submit" disabled={isSavingStatus} className="px-4 py-2 bg-primary hover:bg-primary-hover text-ink font-semibold rounded border border-primary-focus/50 transition-colors">{isSavingStatus ? "Creating..." : "Create Status"}</button>
+              <button type="button" onClick={() => setShowCreateStatusModal(false)} className="px-4 py-2 border border-hairline rounded-md bg-surface-2 hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors">Cancel</button>
+              <button type="submit" disabled={isSavingStatus} className="px-4 py-2 bg-primary hover:bg-primary-hover text-black font-semibold rounded-md border border-transparent transition-colors">{isSavingStatus ? "Creating..." : "Create Status"}</button>
             </div>
           </form>
         </div>
@@ -2254,27 +2257,27 @@ export default function Dashboard() {
               <Settings className="w-4 h-4 text-primary" />
               <span>Add Custom Field Definition</span>
             </h2>
-            <button onClick={() => setShowCreateFieldModal(false)} className="p-1 hover:bg-surface-2 rounded text-ink-subtle hover:text-ink transition-colors">
+            <button onClick={() => setShowCreateFieldModal(false)} className="p-1 hover:bg-surface-2 rounded-md text-ink-subtle hover:text-ink transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
           <form onSubmit={handleCreateCustomField} className="space-y-4 font-mono text-xs">
-            {fieldCreateError && <div className="p-2 border border-red-500/20 text-red-400 bg-red-950/20 rounded text-[11px]">{fieldCreateError}</div>}
+            {fieldCreateError && <div className="p-2 border border-red-500/20 text-red-400 bg-red-950/20 rounded-md text-[11px]">{fieldCreateError}</div>}
             <div className="flex flex-col space-y-1.5">
               <label className="text-ink-subtle">Field Name</label>
-              <input type="text" required placeholder="e.g. Severity Score, Next Review" value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
+              <input type="text" required placeholder="e.g. Severity Score, Next Review" value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)} className="bg-canvas text-ink text-xs rounded-md border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary" />
             </div>
             <div className="flex flex-col space-y-1.5">
               <label className="text-ink-subtle">Field Type</label>
-              <select value={newFieldType} onChange={(e) => setNewFieldType(e.target.value as "text" | "number" | "date")} className="bg-canvas text-ink text-xs rounded border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary cursor-pointer">
+              <select value={newFieldType} onChange={(e) => setNewFieldType(e.target.value as "text" | "number" | "date")} className="bg-canvas text-ink text-xs rounded-md border border-hairline px-3 py-2 w-full focus:outline-none focus:border-primary cursor-pointer">
                 <option value="text">Text</option>
                 <option value="number">Number</option>
                 <option value="date">Date</option>
               </select>
             </div>
             <div className="pt-2 flex justify-end space-x-2">
-              <button type="button" onClick={() => setShowCreateFieldModal(false)} className="px-4 py-2 border border-hairline rounded bg-surface-2 hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors">Cancel</button>
-              <button type="submit" disabled={isSavingField} className="px-4 py-2 bg-primary hover:bg-primary-hover text-ink font-semibold rounded border border-primary-focus/50 transition-colors">{isSavingField ? "Creating..." : "Create Field"}</button>
+              <button type="button" onClick={() => setShowCreateFieldModal(false)} className="px-4 py-2 border border-hairline rounded-md bg-surface-2 hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors">Cancel</button>
+              <button type="submit" disabled={isSavingField} className="px-4 py-2 bg-primary hover:bg-primary-hover text-black font-semibold rounded-md border border-transparent transition-colors">{isSavingField ? "Creating..." : "Create Field"}</button>
             </div>
           </form>
         </div>
@@ -2296,7 +2299,7 @@ export default function Dashboard() {
             </h2>
             <button 
               onClick={() => setShowCreatePriorityModal(false)}
-              className="p-1 hover:bg-surface-2 rounded text-ink-subtle hover:text-ink transition-colors"
+              className="p-1 hover:bg-surface-2 rounded-md text-ink-subtle hover:text-ink transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -2311,7 +2314,7 @@ export default function Dashboard() {
                 value={newPriorityName}
                 onChange={(e) => setNewPriorityName(e.target.value)}
                 placeholder="e.g. Critical P1"
-                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
+                className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
               />
             </div>
 
@@ -2324,7 +2327,7 @@ export default function Dashboard() {
                   required
                   value={newPriorityRank}
                   onChange={(e) => setNewPriorityRank(parseInt(e.target.value) || 1)}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
                 />
               </div>
 
@@ -2336,7 +2339,7 @@ export default function Dashboard() {
                   required
                   value={newPriorityThreshold}
                   onChange={(e) => setNewPriorityThreshold(parseInt(e.target.value) || 5)}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150"
                 />
               </div>
             </div>
@@ -2347,7 +2350,7 @@ export default function Dashboard() {
               <select
                 value={newPriorityChannelId}
                 onChange={(e) => setNewPriorityChannelId(e.target.value)}
-                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150 cursor-pointer"
+                className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-colors duration-150 cursor-pointer"
               >
                 <option value="none">All Active Channels</option>
                 {alertChannels.map(c => (
@@ -2357,7 +2360,7 @@ export default function Dashboard() {
             </div>
 
             {priorityCreateError && (
-              <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded">
+              <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded-md">
                 {priorityCreateError}
               </p>
             )}
@@ -2365,7 +2368,7 @@ export default function Dashboard() {
             <button 
               type="submit" 
               disabled={isSavingPriority}
-              className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-xs py-2.5 px-4 border border-primary-focus/50 transition-colors duration-150"
+              className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-black rounded-md font-medium text-xs py-2.5 px-4 border border-transparent transition-colors duration-150"
             >
               {isSavingPriority ? "Creating..." : "Create Severity Level"}
             </button>
@@ -2389,7 +2392,7 @@ export default function Dashboard() {
             </h2>
             <button 
               onClick={() => setShowCreateChannelModal(false)}
-              className="p-1 hover:bg-surface-2 rounded text-ink-subtle hover:text-ink transition-colors"
+              className="p-1 hover:bg-surface-2 rounded-md text-ink-subtle hover:text-ink transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -2406,7 +2409,7 @@ export default function Dashboard() {
                 value={newChannelName}
                 onChange={(e) => setNewChannelName(e.target.value)}
                 required
-                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
+                className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
               />
             </div>
 
@@ -2417,7 +2420,7 @@ export default function Dashboard() {
               <select 
                 value={newChannelType}
                 onChange={(e) => setNewChannelType(e.target.value as "slack" | "discord" | "email")}
-                className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 cursor-pointer"
+                className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 cursor-pointer"
               >
                 <option value="slack">Slack Webhook</option>
                 <option value="discord">Discord Webhook</option>
@@ -2436,7 +2439,7 @@ export default function Dashboard() {
                   value={newChannelWebhookUrl}
                   onChange={(e) => setNewChannelWebhookUrl(e.target.value)}
                   required
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
                 />
               </div>
             )}
@@ -2452,13 +2455,13 @@ export default function Dashboard() {
                   value={newChannelEmail}
                   onChange={(e) => setNewChannelEmail(e.target.value)}
                   required
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-2 transition-all"
                 />
               </div>
             )}
 
             {channelCreateError && (
-              <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2.5 rounded">
+              <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2.5 rounded-md">
                 {channelCreateError}
               </p>
             )}
@@ -2467,14 +2470,14 @@ export default function Dashboard() {
               <button 
                 type="button"
                 onClick={() => setShowCreateChannelModal(false)}
-                className="px-3 py-1.5 rounded bg-surface-2 border border-hairline hover:bg-surface-3 text-xs font-semibold text-ink-subtle hover:text-ink transition-colors"
+                className="px-3 py-1.5 rounded-md bg-surface-2 border border-hairline hover:bg-surface-3 text-xs font-semibold text-ink-subtle hover:text-ink transition-colors"
               >
                 Cancel
               </button>
               <button 
                 type="submit"
                 disabled={isSavingChannel}
-                className="px-3 py-1.5 rounded bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs font-semibold text-ink border border-primary-focus/50 transition-colors"
+                className="px-3 py-1.5 rounded-md bg-primary hover:bg-primary-hover active:bg-primary-focus text-xs font-semibold text-black border border-transparent transition-colors"
               >
                 {isSavingChannel ? "Saving..." : "Create Channel"}
               </button>
@@ -2509,7 +2512,7 @@ export default function Dashboard() {
             <select 
               value={analyticsDaysFilter}
               onChange={(e) => setAnalyticsDaysFilter(Number(e.target.value))}
-              className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer"
+              className="bg-surface-2 text-ink text-xs rounded-md border border-hairline px-2 py-1.5 focus:outline-none focus:border-primary-focus cursor-pointer"
             >
               <option value={7}>Last 7 Days</option>
               <option value={30}>Last 30 Days</option>
@@ -2635,7 +2638,7 @@ export default function Dashboard() {
             handleUpdateIncident(incidentId, { status: colStatus });
           }
         }}
-        className={`flex flex-col space-y-3 p-3 min-h-[400px] rounded border transition-all duration-200 ease-out ${
+        className={`flex flex-col space-y-3 p-3 min-h-[400px] rounded-md border transition-all duration-200 ease-out ${
           isDraggedOver 
             ? "bg-primary/5 border-primary/40 ring-1 ring-primary/10 shadow-lg shadow-primary/5 scale-[1.01]" 
             : "bg-surface-1/40 border-hairline"
@@ -2662,51 +2665,61 @@ export default function Dashboard() {
               const priStyle = getPriorityStyle(inc.priority);
               
               return (
-                <div 
+                <motion.div 
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   key={inc.id}
-                  onClick={() => setSelectedIncident(inc)}
-                  draggable={true}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("text/plain", inc.id);
-                    e.dataTransfer.effectAllowed = "move";
-                    e.currentTarget.classList.add("opacity-40");
-                  }}
-                  onDragEnd={(e) => {
-                    e.currentTarget.classList.remove("opacity-40");
-                  }}
-                  className={`bg-surface-2 border border-hairline hover:border-hairline-strong rounded p-3 cursor-grab active:cursor-grabbing transition-all duration-150 ${
-                    selectedIncident?.id === inc.id ? "ring-1 ring-primary border-primary bg-primary/5" : ""
-                  }`}
                 >
-                  <div className="flex justify-between items-start">
-                    <span 
-                      style={priStyle.style}
-                      className={priStyle.className}
+                  <Tilt tiltMaxAngleX={10} tiltMaxAngleY={10} scale={1.02} transitionSpeed={2000} className="h-full">
+                    <div
+                      onClick={() => setSelectedIncident(inc)}
+                      draggable={true}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", inc.id);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.currentTarget.classList.add("opacity-40");
+                      }}
+                      onDragEnd={(e) => {
+                        e.currentTarget.classList.remove("opacity-40");
+                      }}
+                      className={`bg-surface-2 border border-hairline hover:border-hairline-strong rounded-md p-3 cursor-grab active:cursor-grabbing shadow-sm [transform-style:preserve-3d] transition-all duration-150 ${
+                        selectedIncident?.id === inc.id ? "ring-1 ring-primary border-primary bg-primary/5" : ""
+                      }`}
                     >
-                      {inc.priority}
-                    </span>
-                    <div className="flex items-center space-x-1.5">
-                      {getIssueTypeIcon(inc.issue_type)}
-                      <span className="text-[9px] font-mono text-ink-tertiary">/p/{slugLabel}</span>
-                    </div>
-                  </div>
-                  <h4 className="text-xs font-semibold text-ink mt-2 line-clamp-2">{inc.title}</h4>
-                  <div className="mt-3 flex items-center justify-between">
-                    {inc.assignee ? (
-                      <div className="flex items-center space-x-1.5 text-[9px] text-primary font-medium">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                        <span>{inc.assignee}</span>
+                      <div className="flex justify-between items-start [transform:translateZ(20px)]">
+                        <span 
+                          style={priStyle.style}
+                          className={priStyle.className}
+                        >
+                          {inc.priority}
+                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          {getIssueTypeIcon(inc.issue_type)}
+                          <span className="text-[9px] font-mono text-ink-tertiary">/p/{slugLabel}</span>
+                        </div>
                       </div>
-                    ) : (
-                      <div />
-                    )}
-                    {inc.story_points !== null && inc.story_points !== undefined && (
-                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-surface-3 text-ink-subtle border border-hairline">
-                        {inc.story_points} pts
-                      </span>
-                    )}
-                  </div>
-                </div>
+                      <h4 className="text-xs font-semibold text-ink mt-2 line-clamp-2 [transform:translateZ(30px)]">{inc.title}</h4>
+                      <div className="mt-3 flex items-center justify-between [transform:translateZ(20px)]">
+                        {inc.assignee ? (
+                          <div className="flex items-center space-x-1.5 text-[9px] text-primary font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            <span>{inc.assignee}</span>
+                          </div>
+                        ) : (
+                          <div />
+                        )}
+                        {inc.story_points !== null && inc.story_points !== undefined && (
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-surface-3 text-ink-subtle border border-hairline">
+                            {inc.story_points} pts
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Tilt>
+                </motion.div>
               );
             })
           )}
@@ -2730,15 +2743,17 @@ export default function Dashboard() {
 
   // --- Render Dashboard Screen ---
   return (
-    <div className="min-h-screen bg-canvas flex flex-col font-sans selection:bg-primary selection:text-white">
+    <div className="min-h-screen bg-canvas flex flex-col font-sans selection:bg-primary selection:text-black relative">
+      {/* 0. Animated 3D Tech Background */}
+      <TechBackground />
       {/* 1. Header (Top Navigation) */}
       <header className="h-[56px] border-b border-hairline bg-canvas/80 backdrop-blur sticky top-0 z-40 flex items-center justify-between px-6">
         <div className="flex items-center space-x-3">
-          <div className="w-7 h-7 rounded bg-surface-1 border border-hairline flex items-center justify-center text-primary">
+          <div className="w-7 h-7 rounded-md bg-surface-1 border border-hairline flex items-center justify-center text-primary">
             <Shield className="w-4 h-4" />
           </div>
           <span className="font-semibold text-sm tracking-tight text-ink">HookShield</span>
-          <span className="text-[10px] bg-surface-2 border border-hairline-strong text-ink-subtle px-1.5 py-0.5 rounded uppercase font-medium">
+          <span className="text-[10px] bg-surface-2 border border-hairline-strong text-ink-subtle px-1.5 py-0.5 rounded-md uppercase font-medium">
             Control Deck
           </span>
         </div>
@@ -2753,7 +2768,7 @@ export default function Dashboard() {
           
           <button 
             onClick={handleLogout}
-            className="p-1.5 rounded bg-surface-1 border border-hairline hover:bg-surface-2 hover:border-hairline-strong text-ink-subtle hover:text-ink transition-colors duration-150"
+            className="p-1.5 rounded-md bg-surface-1 border border-hairline hover:bg-surface-2 hover:border-hairline-strong text-ink-subtle hover:text-ink transition-colors duration-150"
             title="Sign Out"
           >
             <LogOut className="w-4 h-4" />
@@ -2763,56 +2778,66 @@ export default function Dashboard() {
 
       {/* 2. Main Content Area */}
       <main className="flex-1 max-w-[1400px] w-full mx-auto p-6 space-y-6">
+        <AnimatePresence mode="wait">
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2, ease: "easeOut" }} className="w-full space-y-6">
         
         {/* Active Metrics Bar */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-surface-1 border border-hairline rounded-lg p-5 flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Success Rate</span>
-              <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
-                {metrics.success_rate}%
-              </h2>
+          <Tilt tiltMaxAngleX={15} tiltMaxAngleY={15} perspective={1000} scale={1.05} transitionSpeed={2000} glareEnable={true} glareMaxOpacity={0.15} glarePosition="all" className="h-full">
+            <div className="bg-surface-1 border border-hairline rounded-lg p-5 flex items-center justify-between h-full [transform-style:preserve-3d] shadow-lg">
+              <div className="[transform:translateZ(40px)]">
+                <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Success Rate</span>
+                <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
+                  {metrics.success_rate}%
+                </h2>
+              </div>
+              <div className="p-3 rounded-lg bg-emerald-500/5 text-success border border-emerald-500/10 [transform:translateZ(30px)]">
+                <Activity className="w-5 h-5" />
+              </div>
             </div>
-            <div className="p-3 rounded-lg bg-emerald-500/5 text-success border border-emerald-500/10">
-              <Activity className="w-5 h-5" />
-            </div>
-          </div>
+          </Tilt>
 
-          <div className="bg-surface-1 border border-hairline rounded-lg p-5 flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Active Endpoints</span>
-              <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
-                {metrics.active_endpoints}
-              </h2>
+          <Tilt tiltMaxAngleX={15} tiltMaxAngleY={15} perspective={1000} scale={1.05} transitionSpeed={2000} glareEnable={true} glareMaxOpacity={0.15} glarePosition="all" className="h-full">
+            <div className="bg-surface-1 border border-hairline rounded-lg p-5 flex items-center justify-between h-full [transform-style:preserve-3d] shadow-lg">
+              <div className="[transform:translateZ(40px)]">
+                <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Active Endpoints</span>
+                <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
+                  {metrics.active_endpoints}
+                </h2>
+              </div>
+              <div className="p-3 rounded-lg bg-primary/5 text-primary border border-primary/10 [transform:translateZ(30px)]">
+                <Layers className="w-5 h-5" />
+              </div>
             </div>
-            <div className="p-3 rounded-lg bg-primary/5 text-primary border border-primary/10">
-              <Layers className="w-5 h-5" />
-            </div>
-          </div>
+          </Tilt>
 
-          <div className="bg-surface-1 border border-hairline rounded-lg p-5 flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Retries pending</span>
-              <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
-                {metrics.pending_retries}
-              </h2>
+          <Tilt tiltMaxAngleX={15} tiltMaxAngleY={15} perspective={1000} scale={1.05} transitionSpeed={2000} glareEnable={true} glareMaxOpacity={0.15} glarePosition="all" className="h-full">
+            <div className="bg-surface-1 border border-hairline rounded-lg p-5 flex items-center justify-between h-full [transform-style:preserve-3d] shadow-lg">
+              <div className="[transform:translateZ(40px)]">
+                <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Retries pending</span>
+                <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
+                  {metrics.pending_retries}
+                </h2>
+              </div>
+              <div className="p-3 rounded-lg bg-amber-500/5 text-amber-400 border border-amber-500/10 [transform:translateZ(30px)]">
+                <RefreshCw className="w-5 h-5" />
+              </div>
             </div>
-            <div className="p-3 rounded-lg bg-amber-500/5 text-amber-400 border border-amber-500/10">
-              <RefreshCw className="w-5 h-5" />
-            </div>
-          </div>
+          </Tilt>
 
-          <div className="bg-surface-1 border border-hairline rounded-lg p-5 flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Total Processed</span>
-              <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
-                {metrics.total_processed}
-              </h2>
+          <Tilt tiltMaxAngleX={15} tiltMaxAngleY={15} perspective={1000} scale={1.05} transitionSpeed={2000} glareEnable={true} glareMaxOpacity={0.15} glarePosition="all" className="h-full">
+            <div className="bg-surface-1 border border-hairline rounded-lg p-5 flex items-center justify-between h-full [transform-style:preserve-3d] shadow-lg">
+              <div className="[transform:translateZ(40px)]">
+                <span className="text-[11px] font-semibold text-ink-subtle uppercase tracking-wider">Total Processed</span>
+                <h2 className="text-2xl font-semibold tracking-tight text-ink mt-1">
+                  {metrics.total_processed}
+                </h2>
+              </div>
+              <div className="p-3 rounded-lg bg-indigo-500/5 text-indigo-400 border border-indigo-500/10 [transform:translateZ(30px)]">
+                <Terminal className="w-5 h-5" />
+              </div>
             </div>
-            <div className="p-3 rounded-lg bg-indigo-500/5 text-indigo-400 border border-indigo-500/10">
-              <Terminal className="w-5 h-5" />
-            </div>
-          </div>
+          </Tilt>
         </section>
 
         {/* Dashboard Panels */}
@@ -2838,7 +2863,7 @@ export default function Dashboard() {
                     placeholder="e.g. Stripe Outbound, GitHub API Webhook" 
                     value={sourceName}
                     onChange={(e) => setSourceName(e.target.value)}
-                    className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                    className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                     required
                   />
                 </div>
@@ -2852,7 +2877,7 @@ export default function Dashboard() {
                     placeholder="https://api.yourdomain.com/webhooks" 
                     value={targetUrl}
                     onChange={(e) => setTargetUrl(e.target.value)}
-                    className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                    className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                     required
                   />
                 </div>
@@ -2866,7 +2891,7 @@ export default function Dashboard() {
                     placeholder="e.g. whsec_abc123" 
                     value={secretToken}
                     onChange={(e) => setSecretToken(e.target.value)}
-                    className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150 font-mono"
+                    className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150 font-mono"
                   />
                 </div>
 
@@ -2897,7 +2922,7 @@ export default function Dashboard() {
                     placeholder="https://hooks.slack.com/services/..." 
                     value={alertWebhookUrl}
                     onChange={(e) => setAlertWebhookUrl(e.target.value)}
-                    className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                    className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                   />
                 </div>
 
@@ -2910,7 +2935,7 @@ export default function Dashboard() {
                     value={authHeadersInput}
                     onChange={(e) => setAuthHeadersInput(e.target.value)}
                     rows={2}
-                    className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150 font-mono text-xs"
+                    className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150 font-mono text-xs"
                   />
                 </div>
 
@@ -2926,7 +2951,7 @@ export default function Dashboard() {
                       onChange={(e) => setMaxRetriesInput(e.target.value)}
                       min="0"
                       max="50"
-                      className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                      className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                     />
                   </div>
                   <div>
@@ -2940,7 +2965,7 @@ export default function Dashboard() {
                       onChange={(e) => setBackoffBaseInput(e.target.value)}
                       min="1"
                       max="60"
-                      className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                      className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                     />
                   </div>
                 </div>
@@ -2953,7 +2978,7 @@ export default function Dashboard() {
                     <select 
                       value={idempotencyStrategyInput}
                       onChange={(e) => setIdempotencyStrategyInput(e.target.value)}
-                      className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150 cursor-pointer"
+                      className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150 cursor-pointer"
                     >
                       <option value="auto">Auto (Header Check)</option>
                       <option value="payload_hash">Payload Hash (Strict)</option>
@@ -2969,13 +2994,13 @@ export default function Dashboard() {
                       value={idempotencyTTLInput}
                       onChange={(e) => setIdempotencyTTLInput(e.target.value)}
                       min="1"
-                      className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                      className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                     />
                   </div>
                 </div>
 
                 {createError && (
-                  <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded">
+                  <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded-md">
                     {createError}
                   </p>
                 )}
@@ -2983,7 +3008,7 @@ export default function Dashboard() {
                 <button 
                   type="submit" 
                   disabled={isCreating}
-                  className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-xs py-2 px-4 border border-primary-focus/50 transition-colors duration-150"
+                  className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-black rounded-md font-medium text-xs py-2 px-4 border border-transparent transition-colors duration-150"
                 >
                   {isCreating ? "Deploying..." : "Deploy Proxy Link"}
                 </button>
@@ -3015,7 +3040,7 @@ export default function Dashboard() {
                       <div>
                         <h4 className="text-sm font-medium text-ink">{ep.source_name}</h4>
                         <div className="flex items-center space-x-1.5 mt-1">
-                          <span className="text-[10px] text-ink-subtle font-mono bg-surface-3 px-1 py-0.5 rounded">
+                          <span className="text-[10px] text-ink-subtle font-mono bg-surface-3 px-1 py-0.5 rounded-md">
                             /p/{ep.slug}
                           </span>
                           <button 
@@ -3023,7 +3048,7 @@ export default function Dashboard() {
                               e.stopPropagation();
                               copyToClipboard(`${API_BASE}/p/${ep.slug}`, ep.id, "slug");
                             }}
-                            className="p-1 hover:bg-surface-3 rounded text-ink-tertiary hover:text-ink transition-colors"
+                            className="p-1 hover:bg-surface-3 rounded-md text-ink-tertiary hover:text-ink transition-colors"
                             title="Copy Ingest URL"
                           >
                             {copiedSlugId === ep.id ? (
@@ -3135,11 +3160,11 @@ export default function Dashboard() {
                 )}
                 <button 
                   onClick={() => setShowShortcutsModal(true)}
-                  className="flex items-center space-x-1.5 px-2 py-1 rounded bg-surface-2 border border-hairline hover:bg-surface-3 text-[10px] text-ink-subtle hover:text-ink font-medium tracking-tight transition-colors duration-150"
+                  className="flex items-center space-x-1.5 px-2 py-1 rounded-md bg-surface-2 border border-hairline hover:bg-surface-3 text-[10px] text-ink-subtle hover:text-ink font-medium tracking-tight transition-colors duration-150"
                   title="Keyboard Shortcuts (?)"
                 >
                   <Keyboard className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline font-mono uppercase bg-surface-3 px-1 rounded border border-hairline text-[8px] text-ink-tertiary">?</span>
+                  <span className="hidden sm:inline font-mono uppercase bg-surface-3 px-1 rounded-md border border-hairline text-[8px] text-ink-tertiary">?</span>
                 </button>
               </div>
             </div>
@@ -3153,10 +3178,10 @@ export default function Dashboard() {
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     {/* View Toggle */}
-                    <div className="flex bg-surface-2 border border-hairline rounded p-0.5 select-none w-fit">
+                    <div className="flex bg-surface-2 border border-hairline rounded-md p-0.5 select-none w-fit">
                       <button 
                         onClick={() => setRoadmapViewMode("list")}
-                        className={`px-3 py-1 text-xs rounded font-medium transition-all ${
+                        className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
                           roadmapViewMode === "list" 
                             ? "bg-surface-1 border border-hairline shadow-sm text-ink font-semibold" 
                             : "text-ink-subtle hover:text-ink border border-transparent"
@@ -3166,7 +3191,7 @@ export default function Dashboard() {
                       </button>
                       <button 
                         onClick={() => setRoadmapViewMode("timeline")}
-                        className={`px-3 py-1 text-xs rounded font-medium transition-all ${
+                        className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
                           roadmapViewMode === "timeline" 
                             ? "bg-surface-1 border border-hairline shadow-sm text-ink font-semibold" 
                             : "text-ink-subtle hover:text-ink border border-transparent"
@@ -3183,7 +3208,7 @@ export default function Dashboard() {
                           setMilestoneProjectID(projects[0].id);
                           setShowCreateMilestoneModal(true);
                         }}
-                        className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-surface-2 border border-hairline hover:bg-surface-3 text-ink text-xs font-semibold transition-colors"
+                        className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-surface-2 border border-hairline hover:bg-surface-3 text-ink text-xs font-semibold transition-colors"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Add Milestone</span>
@@ -3192,7 +3217,7 @@ export default function Dashboard() {
                     
                     <button 
                       onClick={() => setShowCreateProjectModal(true)}
-                      className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded bg-primary hover:bg-primary-hover text-ink text-xs font-semibold border border-primary-focus/50 transition-colors"
+                      className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-primary hover:bg-primary-hover text-black text-xs font-semibold border border-transparent transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>New Project</span>
@@ -3254,7 +3279,7 @@ export default function Dashboard() {
                               <span className="text-[9px] text-ink-muted uppercase font-bold tracking-wider">Milestones:</span>
                               <div className="flex flex-col space-y-1">
                                 {projMilestones.map(m => (
-                                  <div key={m.id} className="flex justify-between items-center text-[10px] bg-surface-2 p-1.5 rounded border border-hairline">
+                                  <div key={m.id} className="flex justify-between items-center text-[10px] bg-surface-2 p-1.5 rounded-md border border-hairline">
                                     <span className={`font-medium ${m.status === "completed" ? "line-through text-ink-tertiary" : "text-ink"}`}>{m.name}</span>
                                     <span className="text-ink-tertiary font-mono text-[9px]">{new Date(m.target_date).toLocaleDateString()}</span>
                                   </div>
@@ -3289,7 +3314,7 @@ export default function Dashboard() {
                             </button>
                             <button 
                               onClick={() => handleDeleteProject(proj.id)}
-                              className="text-[10px] text-red-400 hover:text-red-300 font-medium hover:bg-red-500/5 px-2 py-1 rounded border border-transparent hover:border-red-950/30 transition-colors"
+                              className="text-[10px] text-red-400 hover:text-red-300 font-medium hover:bg-red-500/5 px-2 py-1 rounded-md border border-transparent hover:border-red-950/30 transition-colors"
                             >
                               Delete
                             </button>
@@ -3422,7 +3447,7 @@ export default function Dashboard() {
               </h3>
               <button 
                 onClick={() => handleToggleEndpointState(selectedEndpoint)}
-                className={`text-xs px-2.5 py-1 rounded border transition-colors ${
+                className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
                   selectedEndpoint.active_state
                     ? "bg-emerald-500/10 border-emerald-500/20 text-success hover:bg-emerald-500/20"
                     : "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
@@ -3436,7 +3461,7 @@ export default function Dashboard() {
               <div className="flex justify-between py-1 border-b border-hairline">
                 <span className="text-ink-tertiary">Ingestion URL:</span>
                 <div className="flex items-center space-x-2">
-                  <span className="text-ink bg-surface-2 px-1 rounded">{`${API_BASE}/p/${selectedEndpoint.slug}`}</span>
+                  <span className="text-ink bg-surface-2 px-1 rounded-md">{`${API_BASE}/p/${selectedEndpoint.slug}`}</span>
                   <button 
                     onClick={() => copyToClipboard(`${API_BASE}/p/${selectedEndpoint.slug}`, selectedEndpoint.id, "slug")}
                     className="hover:text-ink"
@@ -3449,7 +3474,7 @@ export default function Dashboard() {
               <div className="flex justify-between py-1 border-b border-hairline">
                 <span className="text-ink-tertiary">Secret Signing Token:</span>
                 <div className="flex items-center space-x-2">
-                  <span className="text-ink bg-surface-2 px-1 rounded truncate max-w-[200px]">{selectedEndpoint.secret_token}</span>
+                  <span className="text-ink bg-surface-2 px-1 rounded-md truncate max-w-[200px]">{selectedEndpoint.secret_token}</span>
                   <button 
                     onClick={() => copyToClipboard(selectedEndpoint.secret_token, selectedEndpoint.id, "key")}
                     className="hover:text-ink"
@@ -3476,7 +3501,7 @@ export default function Dashboard() {
               {selectedEndpoint.auth_headers && Object.keys(selectedEndpoint.auth_headers).length > 0 && (
                 <div className="flex flex-col py-1 border-b border-hairline space-y-1">
                   <span className="text-ink-tertiary">Auth Headers:</span>
-                  <span className="text-ink text-[10px] bg-surface-2 p-1.5 rounded font-mono block overflow-x-auto whitespace-pre">
+                  <span className="text-ink text-[10px] bg-surface-2 p-1.5 rounded-md font-mono block overflow-x-auto whitespace-pre">
                     {JSON.stringify(selectedEndpoint.auth_headers, null, 2)}
                   </span>
                 </div>
@@ -3507,7 +3532,7 @@ export default function Dashboard() {
             <div className="mt-6 flex justify-end">
               <button 
                 onClick={() => handleDeleteEndpoint(selectedEndpoint.id)}
-                className="bg-red-950/20 hover:bg-red-900/30 text-red-400 hover:text-red-300 font-medium text-xs py-1.5 px-3 rounded border border-red-900/30 hover:border-red-800/50 transition-colors flex items-center space-x-1.5"
+                className="bg-red-950/20 hover:bg-red-900/30 text-red-400 hover:text-red-300 font-medium text-xs py-1.5 px-3 rounded-md border border-red-900/30 hover:border-red-800/50 transition-colors flex items-center space-x-1.5"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Endpoint</span>
@@ -3515,16 +3540,20 @@ export default function Dashboard() {
             </div>
           </section>
         )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* 3. Slide-out drawer inspect panel (From Right) */}
-      <div 
-        className={`fixed top-0 right-0 h-full w-[500px] bg-surface-1 border-l border-hairline z-50 transform transition-transform duration-200 ease-in-out shadow-2xl flex flex-col ${
-          selectedLog ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
+      <AnimatePresence>
         {selectedLog && (
-          <>
+          <motion.div 
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed top-0 right-0 h-full w-[500px] bg-surface-1 border-l border-hairline z-50 shadow-2xl flex flex-col"
+          >
             {/* Drawer Header */}
             <div className="h-[56px] border-b border-hairline bg-surface-2 flex items-center justify-between px-6 shrink-0">
               <div className="flex items-center space-x-2">
@@ -3533,7 +3562,7 @@ export default function Dashboard() {
               </div>
               <button 
                 onClick={() => setSelectedLog(null)}
-                className="p-1 rounded bg-surface-1 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors duration-150"
+                className="p-1 rounded-md bg-surface-1 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors duration-150"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -3550,7 +3579,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-ink-subtle">Status:</span>
-                  <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold uppercase ${
+                  <span className={`px-2 py-0.5 rounded-md border text-[10px] font-semibold uppercase ${
                     selectedLog.delivery_status === "success" 
                       ? "bg-emerald-500/10 text-success border-emerald-500/20" 
                       : selectedLog.delivery_status === "failed" 
@@ -3616,7 +3645,7 @@ export default function Dashboard() {
                           setIsEditingPayload(true);
                         }
                       }}
-                      className="text-[10px] bg-surface-2 hover:bg-primary/20 text-ink-subtle hover:text-primary px-2 py-1 rounded border border-primary/20 transition-colors"
+                      className="text-[10px] bg-surface-2 hover:bg-primary/20 text-black-subtle hover:text-primary px-2 py-1 rounded-md border border-primary/20 transition-colors"
                     >
                       {isEditingPayload ? "Save Payload" : "Edit (DLQ)"}
                     </button>
@@ -3645,18 +3674,20 @@ export default function Dashboard() {
               </div>
 
             </div>
-          </>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
       {/* 4. Slide-out drawer inspect panel for Incidents (From Right) */}
-      <div 
-        className={`fixed top-0 right-0 h-full w-[500px] bg-surface-1 border-l border-hairline z-50 transform transition-transform duration-200 ease-in-out shadow-2xl flex flex-col ${
-          selectedIncident ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
+      <AnimatePresence>
         {selectedIncident && (
-          <>
+          <motion.div 
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed top-0 right-0 h-full w-[500px] bg-surface-1 border-l border-hairline z-50 shadow-2xl flex flex-col"
+          >
             {/* Drawer Header */}
             <div className="h-[56px] border-b border-hairline bg-surface-2 flex items-center justify-between px-6 shrink-0">
               <div className="flex items-center space-x-4">
@@ -3666,7 +3697,7 @@ export default function Dashboard() {
                 </div>
                 <button 
                   onClick={() => handleBulkReplay(selectedIncident.id)}
-                  className="px-3 py-1 bg-primary text-white text-xs font-semibold rounded hover:bg-primary/90 transition-colors flex items-center"
+                  className="px-3 py-1 bg-primary text-black text-xs font-semibold rounded-md hover:bg-primary/90 transition-colors flex items-center"
                   title="Re-enqueue all failed webhooks for this incident endpoint"
                 >
                   Replay All Failed
@@ -3674,7 +3705,7 @@ export default function Dashboard() {
               </div>
               <button 
                 onClick={() => setSelectedIncident(null)}
-                className="p-1 rounded bg-surface-1 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors duration-150"
+                className="p-1 rounded-md bg-surface-1 border border-hairline hover:bg-surface-3 text-ink-subtle hover:text-ink transition-colors duration-150"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -3690,7 +3721,7 @@ export default function Dashboard() {
                   <select 
                     value={selectedIncident.issue_type || "incident"}
                     onChange={(e) => handleUpdateIncident(selectedIncident.id, { issue_type: e.target.value as "incident" | "story" | "task" | "bug" })}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary capitalize font-sans"
+                    className="bg-canvas text-ink text-xs rounded-md border border-hairline px-2 py-1 focus:outline-none focus:border-primary capitalize font-sans"
                   >
                     <option value="incident">Incident</option>
                     <option value="story">Story</option>
@@ -3704,7 +3735,7 @@ export default function Dashboard() {
                   <select 
                     value={selectedIncident.status}
                     onChange={(e) => handleUpdateIncident(selectedIncident.id, { status: e.target.value })}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary capitalize font-sans"
+                    className="bg-canvas text-ink text-xs rounded-md border border-hairline px-2 py-1 focus:outline-none focus:border-primary capitalize font-sans"
                   >
                     {workflowStatuses.length > 0 ? (
                       workflowStatuses.map(ws => (
@@ -3725,7 +3756,7 @@ export default function Dashboard() {
                   <select 
                     value={selectedIncident.priority}
                     onChange={(e) => handleUpdateIncident(selectedIncident.id, { priority: e.target.value })}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 focus:outline-none focus:border-primary uppercase font-sans"
+                    className="bg-canvas text-ink text-xs rounded-md border border-hairline px-2 py-1 focus:outline-none focus:border-primary uppercase font-sans"
                   >
                     {severityPriorities.length > 0 ? (
                       severityPriorities.map(p => (
@@ -3757,7 +3788,7 @@ export default function Dashboard() {
                       const val = e.target.value === "" ? null : parseInt(e.target.value);
                       handleUpdateIncident(selectedIncident.id, { story_points: val });
                     }}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-20 focus:outline-none focus:border-primary text-center"
+                    className="bg-canvas text-ink text-xs rounded-md border border-hairline px-2 py-1 w-20 focus:outline-none focus:border-primary text-center"
                   />
                 </div>
 
@@ -3770,7 +3801,7 @@ export default function Dashboard() {
                       value={assigneeInput}
                       onChange={(e) => setAssigneeInput(e.target.value)}
                       onBlur={() => handleUpdateIncident(selectedIncident.id, { assignee: assigneeInput.trim() })}
-                      className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary font-sans"
+                      className="bg-canvas text-ink text-xs rounded-md border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary font-sans"
                     />
                   </div>
                 </div>
@@ -3780,7 +3811,7 @@ export default function Dashboard() {
                   <select 
                     value={selectedIncident.project_id || ""}
                     onChange={(e) => handleUpdateIncident(selectedIncident.id, { project_id: e.target.value || null })}
-                    className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-48 focus:outline-none focus:border-primary cursor-pointer font-sans"
+                    className="bg-canvas text-ink text-xs rounded-md border border-hairline px-2 py-1 w-48 focus:outline-none focus:border-primary cursor-pointer font-sans"
                   >
                     <option value="">No Project Initiative</option>
                     {projects.map((proj) => (
@@ -3814,7 +3845,7 @@ export default function Dashboard() {
                           });
                         }}
                         onBlur={(e) => handleSaveCustomFieldValue(selectedIncident.id, cf.id, e.target.value)}
-                        className="bg-canvas text-ink text-xs rounded border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary font-sans"
+                        className="bg-canvas text-ink text-xs rounded-md border border-hairline px-2 py-1 w-32 focus:outline-none focus:border-primary font-sans"
                       />
                     </div>
                   );
@@ -3824,7 +3855,7 @@ export default function Dashboard() {
               {/* Title & Description */}
               <div className="space-y-2">
                 <h3 className="text-base font-semibold text-ink leading-tight">{selectedIncident.title}</h3>
-                <div className="text-xs text-ink-muted bg-surface-2 border border-hairline rounded p-4 whitespace-pre-wrap font-mono leading-relaxed">
+                <div className="text-xs text-ink-muted bg-surface-2 border border-hairline rounded-md p-4 whitespace-pre-wrap font-mono leading-relaxed">
                   {selectedIncident.description}
                 </div>
               </div>
@@ -3838,7 +3869,7 @@ export default function Dashboard() {
                     <p className="text-[11px] text-ink-tertiary italic">No updates or comments posted yet.</p>
                   ) : (
                     incidentComments.map(c => (
-                      <div key={c.id} className="bg-surface-2 border border-hairline rounded p-3 text-xs space-y-1">
+                      <div key={c.id} className="bg-surface-2 border border-hairline rounded-md p-3 text-xs space-y-1">
                         <div className="flex justify-between text-[10px] text-ink-tertiary">
                           <span className="font-semibold text-primary">{c.commenter}</span>
                           <span>{new Date(c.created_at).toLocaleTimeString()}</span>
@@ -3857,7 +3888,7 @@ export default function Dashboard() {
                       placeholder="Your name..." 
                       value={commenterName}
                       onChange={(e) => setCommenterName(e.target.value)}
-                      className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2.5 py-1.5 focus:outline-none w-1/3"
+                      className="bg-surface-2 text-ink text-xs rounded-md border border-hairline px-2.5 py-1.5 focus:outline-none w-1/3"
                     />
                     <input 
                       id="comment-body-input"
@@ -3866,12 +3897,12 @@ export default function Dashboard() {
                       value={newCommentBody}
                       onChange={(e) => setNewCommentBody(e.target.value)}
                       required
-                      className="bg-surface-2 text-ink text-xs rounded border border-hairline px-2.5 py-1.5 focus:outline-none flex-1"
+                      className="bg-surface-2 text-ink text-xs rounded-md border border-hairline px-2.5 py-1.5 focus:outline-none flex-1"
                     />
                   </div>
                   <button 
                     type="submit" 
-                    className="w-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 text-xs rounded font-medium py-1.5 transition-colors"
+                    className="w-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/30 text-xs rounded-md font-medium py-1.5 transition-colors"
                   >
                     Post Comment
                   </button>
@@ -3879,9 +3910,9 @@ export default function Dashboard() {
               </div>
 
             </div>
-          </>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
       {/* 5. Command Menu Overlay (Ctrl+K) */}
       {showCommandMenu && (
@@ -3905,7 +3936,7 @@ export default function Dashboard() {
                 autoFocus
                 className="bg-transparent text-ink text-sm w-full focus:outline-none"
               />
-              <span className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">
+              <span className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase">
                 esc
               </span>
             </div>
@@ -3925,10 +3956,10 @@ export default function Dashboard() {
                 <div 
                   key={i}
                   onClick={() => { cmd.action(); setShowCommandMenu(false); setCommandQuery(""); }}
-                  className="flex justify-between items-center px-2 py-1.5 rounded hover:bg-primary/10 text-xs text-ink cursor-pointer hover:text-primary transition-colors"
+                  className="flex justify-between items-center px-2 py-1.5 rounded-md hover:bg-primary/10 text-xs text-black cursor-pointer hover:text-primary transition-colors"
                 >
                   <span>{cmd.label}</span>
-                  <kbd className="text-[9px] bg-surface-3 border border-hairline text-ink-tertiary px-1 rounded font-mono uppercase">{cmd.shortcut}</kbd>
+                  <kbd className="text-[9px] bg-surface-3 border border-hairline text-ink-tertiary px-1 rounded-md font-mono uppercase">{cmd.shortcut}</kbd>
                 </div>
               ))}
 
@@ -3940,7 +3971,7 @@ export default function Dashboard() {
                     <div 
                       key={proj.id}
                       onClick={() => { setActiveTab("roadmaps"); setShowCommandMenu(false); setCommandQuery(""); }}
-                      className="flex justify-between items-center px-2 py-1.5 rounded hover:bg-primary/10 text-xs text-ink cursor-pointer hover:text-primary transition-colors"
+                      className="flex justify-between items-center px-2 py-1.5 rounded-md hover:bg-primary/10 text-xs text-black cursor-pointer hover:text-primary transition-colors"
                     >
                       <span className="truncate">{proj.name}</span>
                       <span className="text-[10px] uppercase font-mono text-ink-tertiary">{proj.status}</span>
@@ -3957,7 +3988,7 @@ export default function Dashboard() {
                     <div 
                       key={ep.id}
                       onClick={() => { setSelectedEndpoint(ep); setShowCommandMenu(false); setCommandQuery(""); }}
-                      className="flex justify-between items-center px-2 py-1.5 rounded hover:bg-primary/10 text-xs text-ink cursor-pointer hover:text-primary transition-colors"
+                      className="flex justify-between items-center px-2 py-1.5 rounded-md hover:bg-primary/10 text-xs text-black cursor-pointer hover:text-primary transition-colors"
                     >
                       <span className="truncate">{ep.source_name}</span>
                       <span className="text-[10px] font-mono text-ink-tertiary">/p/{ep.slug}</span>
@@ -3987,7 +4018,7 @@ export default function Dashboard() {
               </span>
               <button 
                 onClick={() => setShowShortcutsModal(false)}
-                className="text-[10px] bg-surface-3 hover:bg-surface-2 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase transition-colors"
+                className="text-[10px] bg-surface-3 hover:bg-surface-2 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase transition-colors"
               >
                 esc
               </button>
@@ -3999,15 +4030,15 @@ export default function Dashboard() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-ink-subtle">Switch to Event Logs</span>
-                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">L</kbd>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase">L</kbd>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-ink-subtle">Switch to Incident Board</span>
-                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">B</kbd>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase">B</kbd>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-ink-subtle">Switch to Roadmaps</span>
-                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">R</kbd>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase">R</kbd>
                   </div>
                 </div>
               </div>
@@ -4017,15 +4048,15 @@ export default function Dashboard() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-ink-subtle">Open Command Menu</span>
-                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">Ctrl + K</kbd>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase">Ctrl + K</kbd>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-ink-subtle">Toggle Shortcuts Help</span>
-                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">?</kbd>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase">?</kbd>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-ink-subtle">Close Modals / Drawer</span>
-                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">esc</kbd>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase">esc</kbd>
                   </div>
                 </div>
               </div>
@@ -4035,7 +4066,7 @@ export default function Dashboard() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-ink-subtle">Focus comment input</span>
-                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded font-mono uppercase">C</kbd>
+                    <kbd className="text-[10px] bg-surface-3 border border-hairline text-ink-tertiary px-1.5 py-0.5 rounded-md font-mono uppercase">C</kbd>
                   </div>
                 </div>
               </div>
@@ -4075,7 +4106,7 @@ export default function Dashboard() {
                   placeholder="e.g. Auth Consolidation, Stripe SDK Upgrade" 
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                   required
                 />
               </div>
@@ -4089,7 +4120,7 @@ export default function Dashboard() {
                   value={projectDescription}
                   onChange={(e) => setProjectDescription(e.target.value)}
                   rows={3}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                 />
               </div>
 
@@ -4101,7 +4132,7 @@ export default function Dashboard() {
                   type="date" 
                   value={projectTargetDate}
                   onChange={(e) => setProjectTargetDate(e.target.value)}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                 />
               </div>
 
@@ -4112,7 +4143,7 @@ export default function Dashboard() {
                 <select 
                   value={projectStatusInput}
                   onChange={(e) => setProjectStatusInput(e.target.value as "backlog" | "started" | "completed" | "paused")}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                 >
                   <option value="backlog">Backlog</option>
                   <option value="started">Started</option>
@@ -4122,7 +4153,7 @@ export default function Dashboard() {
               </div>
 
               {projectCreateError && (
-                <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded">
+                <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded-md">
                   {projectCreateError}
                 </p>
               )}
@@ -4130,7 +4161,7 @@ export default function Dashboard() {
               <button 
                 type="submit" 
                 disabled={isCreatingProject}
-                className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-xs py-2 px-4 border border-primary-focus/50 transition-colors duration-150"
+                className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-black rounded-md font-medium text-xs py-2 px-4 border border-transparent transition-colors duration-150"
               >
                 {isCreatingProject ? "Creating..." : "Create Project"}
               </button>
@@ -4168,7 +4199,7 @@ export default function Dashboard() {
                 <select 
                   value={milestoneProjectID}
                   onChange={(e) => setMilestoneProjectID(e.target.value)}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                   required
                 >
                   <option value="">Select Project Initiative...</option>
@@ -4187,7 +4218,7 @@ export default function Dashboard() {
                   placeholder="e.g. Beta Launch, SDK Core Stable" 
                   value={milestoneName}
                   onChange={(e) => setMilestoneName(e.target.value)}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                   required
                 />
               </div>
@@ -4201,7 +4232,7 @@ export default function Dashboard() {
                   value={milestoneDescription}
                   onChange={(e) => setMilestoneDescription(e.target.value)}
                   rows={2}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                 />
               </div>
 
@@ -4213,13 +4244,13 @@ export default function Dashboard() {
                   type="date" 
                   value={milestoneTargetDate}
                   onChange={(e) => setMilestoneTargetDate(e.target.value)}
-                  className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
+                  className="w-full bg-surface-2 text-ink text-sm rounded-md border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                   required
                 />
               </div>
 
               {milestoneCreateError && (
-                <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded">
+                <p className="text-xs text-red-400 bg-red-950/20 border border-red-900/50 p-2 rounded-md">
                   {milestoneCreateError}
                 </p>
               )}
@@ -4227,7 +4258,7 @@ export default function Dashboard() {
               <button 
                 type="submit" 
                 disabled={isCreatingMilestone}
-                className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-ink rounded font-medium text-xs py-2 px-4 border border-primary-focus/50 transition-colors duration-150"
+                className="w-full bg-primary hover:bg-primary-hover active:bg-primary-focus text-black rounded-md font-medium text-xs py-2 px-4 border border-transparent transition-colors duration-150"
               >
                 {isCreatingMilestone ? "Creating..." : "Create Milestone"}
               </button>
