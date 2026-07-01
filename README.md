@@ -1,4 +1,4 @@
-# 🛡️ HookShield
+#  HookShield
 
 **HookShield** is an enterprise-grade Webhook Proxy and Exponential Retry Engine. 
 
@@ -6,18 +6,18 @@ It acts as a secure, intermediate buffer between third-party services (like Stri
 
 ---
 
-## ✨ Core Features
+##  Core Features
 
-*   **🔄 Smart Webhook Proxy:** Issue unique proxy URLs to third-party services. HookShield receives the payloads instantly and forwards them to your actual destination.
-*   **🚨 Automatic Retries & Incident Board:** If your destination server is unreachable (returns 500+ errors), HookShield automatically queues the payload. Failed deliveries populate a Kanban-style Incident Board where you can manually review and replay them.
-*   **📜 Live Event Logs:** A real-time, virtualized table of all incoming webhooks, complete with HTTP headers, JSON payload inspection, latency tracking, and status codes.
-*   **📊 Analytics Dashboard:** Monitor your system's health with total volume metrics, success/failure rates, and average latency visualizations.
-*   **🗺️ Project Roadmaps:** Keep track of internal development milestones, custom fields, and severity levels.
-*   **🔒 Secure Authentication:** Built-in JWT authentication with email/password logic, plus drop-in support for Google and GitHub OAuth.
+*   ** Smart Webhook Proxy:** Issue unique proxy URLs to third-party services. HookShield receives the payloads instantly and forwards them to your actual destination.
+*   ** Automatic Retries & Incident Board:** If your destination server is unreachable (returns 500+ errors), HookShield automatically queues the payload. Failed deliveries populate a Kanban-style Incident Board where you can manually review and replay them.
+*   ** Live Event Logs:** A real-time, virtualized table of all incoming webhooks, complete with HTTP headers, JSON payload inspection, latency tracking, and status codes.
+*   ** Analytics Dashboard:** Monitor your system's health with total volume metrics, success/failure rates, and average latency visualizations.
+*   ** Project Roadmaps:** Keep track of internal development milestones, custom fields, and severity levels.
+*   ** Secure Authentication:** Built-in JWT authentication with email/password logic, plus drop-in support for Google and GitHub OAuth.
 
 ---
 
-## 📐 System Architecture
+##  System Architecture
 
 HookShield is designed with a decoupled architecture for maximum scalability and reliability.
 
@@ -67,7 +67,7 @@ graph TD
 
 ---
 
-## 📖 User Guide: How to Use HookShield
+##  User Guide: How to Use HookShield
 
 Follow these steps to seamlessly integrate HookShield into your webhook flow:
 
@@ -95,7 +95,7 @@ Follow these steps to seamlessly integrate HookShield into your webhook flow:
 
 ---
 
-## 🛠️ Technology Stack
+##  Technology Stack
 
 *   **Frontend:** Next.js 15 (App Router), React, Tailwind CSS, Lucide Icons, Recharts (for analytics).
 *   **Backend:** FastAPI (Python), SQLAlchemy (AsyncORM), Alembic (Migrations), Uvicorn/Gunicorn.
@@ -104,7 +104,7 @@ Follow these steps to seamlessly integrate HookShield into your webhook flow:
 
 ---
 
-## 🚀 Local Development (Quick Start)
+##  Local Development (Quick Start)
 
 To run the application on your personal computer for development and testing:
 
@@ -135,12 +135,12 @@ npm run dev
 
 ---
 
-## 🌍 Production Deployment
+##  Production Deployment
 
 HookShield is fully containerized and ready for production deployment using Docker. 
 
 A comprehensive, step-by-step PDF/Markdown guide on how to rent a server, link a domain name, configure OAuth keys, and deploy the application can be found in the root directory: 
-👉 **[HookShield_Deployment_Guide.md](./HookShield_Deployment_Guide.md)**
+ **[HookShield_Deployment_Guide.md](./HookShield_Deployment_Guide.md)**
 
 ### TL;DR Deploy Command:
 ```bash
