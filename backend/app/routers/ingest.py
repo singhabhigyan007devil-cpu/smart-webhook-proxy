@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Request, Response, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 import time
+import hmac
+import hashlib
 from backend.app.db import get_db
 from backend.app.cache import slug_cache
 from backend.app.tasks import enqueue_webhook_task
@@ -30,14 +32,43 @@ async def ingest_webhook(
             detail="Webhook proxy endpoint not found"
         )
 
-    # 3. Check active state (circuit breaker status)
+    # 3. Security: Check HMAC Signature if a secret is configured
+    secret = endpoint_data.get("secret_token")
+    if secret:
+        # Convert headers keys to lowercase for case-insensitive lookup
+        lower_headers = {k.lower(): v for k, v in request.headers.items()}
+        signature = lower_headers.get("x-hookshield-signature") or lower_headers.get("x-hub-signature-256")
+        
+        if not signature:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing webhook signature header (X-HookShield-Signature or X-Hub-Signature-256)"
+            )
+            
+        # Handle GitHub-style prefixed signatures
+        if signature.startswith("sha256="):
+            signature = signature[7:]
+            
+        expected_sig = hmac.new(
+            secret.encode("utf-8"),
+            raw_body_bytes,
+            hashlib.sha256
+        ).hexdigest()
+        
+        if not hmac.compare_digest(expected_sig, signature):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid webhook signature"
+            )
+
+    # 4. Check active state (circuit breaker status)
     if not endpoint_data["active_state"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Webhook proxy endpoint is paused (circuit breaker tripped or admin disabled)"
         )
 
-    # 4. Extract headers
+    # 5. Extract headers
     headers = dict(request.headers)
 
     # Remove system headers or host header to prevent target conflicts

@@ -307,6 +307,7 @@ export default function Dashboard() {
   // Create Endpoint Form State
   const [sourceName, setSourceName] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
+  const [secretToken, setSecretToken] = useState("");
   const [customSlug, setCustomSlug] = useState("");
   const [alertWebhookUrl, setAlertWebhookUrl] = useState("");
   const [authHeadersInput, setAuthHeadersInput] = useState("");
@@ -1226,6 +1227,7 @@ export default function Dashboard() {
         body: JSON.stringify({
           source_name: sourceName,
           target_url: targetUrl,
+          secret_token: secretToken || null,
           slug: customSlug.trim() || undefined,
           alert_webhook_url: alertWebhookUrl.trim() || undefined,
           auth_headers: headersObj || undefined,
@@ -1239,6 +1241,7 @@ export default function Dashboard() {
       if (response.ok) {
         setSourceName("");
         setTargetUrl("");
+        setSecretToken("");
         setCustomSlug("");
         setAlertWebhookUrl("");
         setAuthHeadersInput("");
@@ -2776,6 +2779,19 @@ export default function Dashboard() {
                     onChange={(e) => setTargetUrl(e.target.value)}
                     className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150"
                     required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">
+                    Webhook Secret / HMAC Key (Optional)
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. whsec_abc123" 
+                    value={secretToken}
+                    onChange={(e) => setSecretToken(e.target.value)}
+                    className="w-full bg-surface-2 text-ink text-sm rounded border border-hairline focus:border-hairline-strong focus:outline-none px-3 py-1.5 transition-colors duration-150 font-mono"
                   />
                 </div>
 
