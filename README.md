@@ -23,34 +23,47 @@ HookShield is designed with a decoupled architecture for maximum scalability and
 
 ```mermaid
 graph TD
-    %% Entities
-    ThirdParty[Third-Party Services\nStripe, GitHub, etc.]
-    Destination[Your Internal Server\nDestination API]
+    %% External Entities
+    ThirdParty[Third-Party Services<br/>Stripe, GitHub, etc.]
+    Destination[Your Internal Server<br/>Destination API]
     
-    %% Infrastructure
-    subgraph HookShield Infrastructure
-        Nginx[Nginx Reverse Proxy]
-        Frontend[Next.js 15 Frontend\nReact App]
-        Backend[FastAPI Backend\nPython API]
-        DB[(PostgreSQL\nDatabase)]
+    %% Docker Compose Network
+    subgraph Docker Compose Environment
+        Nginx[Nginx Container<br/>Reverse Proxy]
+        
+        subgraph Frontend Container
+            UI[Next.js 15 App Router<br/>React + Tailwind CSS]
+        end
+        
+        subgraph Backend Container
+            API[FastAPI Server<br/>Uvicorn / Gunicorn]
+            ORM[SQLAlchemy + Alembic<br/>AsyncORM & Migrations]
+        end
+        
+        subgraph Database Container
+            DB[(PostgreSQL 15+<br/>Persistent Storage)]
+        end
     end
 
     %% Data Flow
     ThirdParty -- "1. Sends Webhook (POST)" --> Nginx
-    Nginx -- "2. Routes API Traffic" --> Backend
-    Nginx -- "Serves UI" --> Frontend
-    Frontend -- "Fetches Data (REST)" --> Backend
-    Backend -- "3. Stores Payload" --> DB
-    Backend -- "4. Forwards Webhook" --> Destination
-    Destination -- "5. Fails (500 Error)" --> Backend
-    Backend -- "6. Queues for Retry" --> DB
+    Nginx -- "2. Routes API Traffic (/api)" --> API
+    Nginx -- "Serves UI Traffic" --> UI
+    UI -- "Fetches Data (REST)" --> API
+    API <--> ORM
+    ORM -- "3. Reads/Writes Payload" --> DB
+    API -- "4. Forwards Webhook" --> Destination
+    Destination -- "5. Fails (500 Error)" --> API
+    API -- "6. Queues for Retry" --> DB
 ```
 
 ### Architecture Breakdown
-1. **Nginx Reverse Proxy:** Acts as the gateway, routing traffic to the Next.js frontend (UI) or FastAPI backend (`/api/*`).
-2. **Next.js (App Router) Frontend:** A heavily stylized, dark-themed React application providing the dashboards, live logs, and incident management interfaces.
-3. **FastAPI Backend:** A highly concurrent Python server responsible for instantly accepting payloads, logging them, and acting as the HTTP client that forwards requests to your internal infrastructure.
-4. **PostgreSQL Database:** The persistent storage layer that holds user accounts, project configurations, webhook endpoints, and the historical event logs/failed delivery queues.
+1. **Docker Compose Environment:** The entire application runs within an isolated Docker network, ensuring services are decoupled but communicate securely.
+2. **Nginx Reverse Proxy:** Acts as the public-facing gateway, routing external traffic to either the Next.js frontend or the FastAPI backend (`/api/*`).
+3. **Next.js (App Router) Frontend:** A containerized, heavily stylized React application providing the dashboards, live logs, and incident management interfaces.
+4. **FastAPI Backend (Uvicorn):** A highly concurrent Python server running via Uvicorn/Gunicorn. It instantly accepts payloads, logs them, and forwards requests to your internal infrastructure.
+5. **SQLAlchemy & Alembic:** The Python backend uses SQLAlchemy for Async Object-Relational Mapping (ORM) and Alembic to handle safe database schema migrations.
+6. **PostgreSQL Database:** The persistent storage layer running in its own container, safely storing user accounts, endpoints, and the historical event/retry queues.
 
 ---
 
