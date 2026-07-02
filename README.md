@@ -14,6 +14,7 @@ It acts as a secure, intermediate buffer between third-party services (like Stri
 *   ** Live Event Logs:** A real-time, virtualized table of all incoming webhooks, complete with HTTP headers, JSON payload inspection, latency tracking, and status codes.
 *   ** Analytics & Queue Health Dashboard:** Monitor your system's health with total volume metrics, success/failure rates, average latency visualizations, and real-time Queue Depth monitoring to detect Redis congestion.
 *   ** Secure Authentication:** Built-in JWT authentication with email/password logic, plus drop-in support for Google and GitHub OAuth.
+*   ** Immersive 3D Visualizers:** Beautiful, interactive 3D Webhook Architecture and Outcome Metric scenes built directly into the landing page.
 *   ** CI/CD Pipeline:** Built-in automated GitHub Actions deployment pipeline for hands-free server updates.
 
 ---
