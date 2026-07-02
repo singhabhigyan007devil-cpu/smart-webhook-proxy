@@ -1,12 +1,15 @@
 "use client";
 import React, { useRef, useEffect } from "react";
 
-interface Dot {
+interface Star {
   x: number;
   y: number;
   vx: number;
   vy: number;
   size: number;
+  twinkleSpeed: number;
+  twinkleOffset: number;
+  baseAlpha: number;
 }
 
 export default function MinimalBackground() {
@@ -35,62 +38,77 @@ export default function MinimalBackground() {
     const W = () => window.innerWidth;
     const H = () => window.innerHeight;
 
-    // Dot grid
-    const dots: Dot[] = [];
-    const GRID_SPACING = 50;
-    const cols = Math.ceil(W() / GRID_SPACING) + 2;
-    const rows = Math.ceil(H() / GRID_SPACING) + 2;
+    // Star field
+    const stars: Star[] = [];
+    const numStars = Math.floor((W() * H()) / 6000); // density
 
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        dots.push({
-          x: c * GRID_SPACING + (Math.random() - 0.5) * 6,
-          y: r * GRID_SPACING + (Math.random() - 0.5) * 6,
-          vx: (Math.random() - 0.5) * 0.2,
-          vy: (Math.random() - 0.5) * 0.2,
-          size: 1.5 + Math.random() * 1,
-        });
-      }
+    for (let i = 0; i < numStars; i++) {
+      stars.push({
+        x: Math.random() * W(),
+        y: Math.random() * H(),
+        vx: (Math.random() - 0.5) * 0.1,
+        vy: (Math.random() - 0.5) * 0.1,
+        size: 0.5 + Math.random() * 1.5,
+        twinkleSpeed: 0.5 + Math.random() * 1.5,
+        twinkleOffset: Math.random() * Math.PI * 2,
+        baseAlpha: 0.2 + Math.random() * 0.6,
+      });
     }
 
     const draw = () => {
       time += 0.016;
       ctx.clearRect(0, 0, W(), H());
 
-      // Draw connections between nearby dots
+      // Draw connections for close stars (constellation effect)
       ctx.save();
-      for (let i = 0; i < dots.length; i++) {
-        const a = dots[i];
-        for (let j = i + 1; j < dots.length; j++) {
-          const b = dots[j];
+      for (let i = 0; i < stars.length; i++) {
+        const a = stars[i];
+        for (let j = i + 1; j < stars.length; j++) {
+          const b = stars[j];
           const dx = a.x - b.x;
           const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 100) {
-            const alpha = (1 - dist / 100) * 0.15;
+          const dist = dx * dx + dy * dy; // squared distance for performance
+          if (dist < 10000) { // 100px
+            const actualDist = Math.sqrt(dist);
+            const alpha = (1 - actualDist / 100) * 0.1;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = `rgba(100, 160, 255, ${alpha})`;
-            ctx.lineWidth = 0.6;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.lineWidth = 0.5;
             ctx.stroke();
           }
         }
       }
       ctx.restore();
 
-      // Draw dots
-      for (const dot of dots) {
-        dot.x += dot.vx;
-        dot.y += dot.vy;
+      // Draw stars
+      for (const star of stars) {
+        star.x += star.vx;
+        star.y += star.vy;
 
-        // Subtle pulse
-        const pulse = Math.sin(time * 1.5 + dot.x * 0.01 + dot.y * 0.01) * 0.3 + 0.7;
+        // Wrap around
+        if (star.x < 0) star.x = W();
+        if (star.x > W()) star.x = 0;
+        if (star.y < 0) star.y = H();
+        if (star.y > H()) star.y = 0;
+
+        // Twinkle
+        const pulse = Math.sin(time * star.twinkleSpeed + star.twinkleOffset) * 0.5 + 0.5;
+        const currentAlpha = star.baseAlpha * pulse;
 
         ctx.beginPath();
-        ctx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(100, 180, 255, ${0.3 * pulse})`;
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha})`;
         ctx.fill();
+        
+        // Glow for larger stars
+        if (star.size > 1.2) {
+          ctx.beginPath();
+          ctx.arc(star.x, star.y, star.size * 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha * 0.2})`;
+          ctx.fill();
+        }
       }
 
       animId = requestAnimationFrame(draw);
@@ -107,7 +125,7 @@ export default function MinimalBackground() {
     <canvas
       ref={canvasRef}
       className="fixed inset-0 z-0 pointer-events-none"
-      style={{ opacity: 0.75 }}
+      style={{ opacity: 0.85 }}
     />
   );
 }

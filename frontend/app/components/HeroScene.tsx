@@ -12,7 +12,7 @@ interface Shape {
   vRotY: number;
   vRotZ: number;
   size: number;
-  type: "shield" | "hexgrid" | "circuit" | "node" | "pipe" | "bracket";
+  type: "shield" | "hexgrid" | "circuit" | "node" | "pipe" | "bracket" | "server" | "database" | "queue" | "webhook";
   color: string;
   glow: string;
   floatOffset: number;
@@ -165,6 +165,82 @@ function getEdges(type: string): [number, number, number][][] {
       r.push([[-0.3, 0, 0], [0.3, 0, 0]]);
       return r;
     }
+    case "server": {
+      const r: [number,number,number][][] = [];
+      const front: [number,number,number][] = [[-1,-1.5,0.5],[1,-1.5,0.5],[1,1.5,0.5],[-1,1.5,0.5]];
+      const back: [number,number,number][] = [[-1,-1.5,-0.5],[1,-1.5,-0.5],[1,1.5,-0.5],[-1,1.5,-0.5]];
+      for(let i=0; i<4; i++) {
+        r.push([front[i], front[(i+1)%4]]);
+        r.push([back[i], back[(i+1)%4]]);
+        r.push([front[i], back[i]]);
+      }
+      for(let y of [-0.5, 0.5]) {
+        r.push([[-1,y,0.5],[1,y,0.5]]);
+        r.push([[-1,y,-0.5],[1,y,-0.5]]);
+        r.push([[-1,y,0.5],[-1,y,-0.5]]);
+        r.push([[1,y,0.5],[1,y,-0.5]]);
+      }
+      return r;
+    }
+    case "database": {
+      const r: [number,number,number][][] = [];
+      const segs = 12;
+      const layers = [-1, 0, 1];
+      const circles: [number,number,number][][] = [[], [], []];
+      for(let i=0; i<segs; i++) {
+        const a = (i/segs) * Math.PI * 2;
+        const x = Math.cos(a) * 0.8;
+        const z = Math.sin(a) * 0.8;
+        layers.forEach((y, lIndex) => {
+          circles[lIndex].push([x,y,z]);
+        });
+      }
+      for(let lIndex=0; lIndex<3; lIndex++) {
+        for(let i=0; i<segs; i++) {
+          r.push([circles[lIndex][i], circles[lIndex][(i+1)%segs]]);
+        }
+      }
+      for(let i=0; i<segs; i+=2) {
+        r.push([circles[0][i], circles[2][i]]);
+      }
+      return r;
+    }
+    case "queue": {
+      const r: [number,number,number][][] = [];
+      for(let zOffset of [-0.6, 0, 0.6]) {
+        const pts: [number,number,number][] = [
+          [-0.8, -0.8, zOffset], [0.8, -0.8, zOffset],
+          [0.8, 0.8, zOffset], [-0.8, 0.8, zOffset]
+        ];
+        for(let i=0; i<4; i++) {
+          r.push([pts[i], pts[(i+1)%4]]);
+        }
+      }
+      const edges: [number,number,number][] = [[-0.8,-0.8,0], [0.8,-0.8,0], [0.8,0.8,0], [-0.8,0.8,0]];
+      for(const e of edges) {
+        r.push([[e[0], e[1], -0.6], [e[0], e[1], 0.6]]);
+      }
+      return r;
+    }
+    case "webhook": {
+      const r: [number,number,number][][] = [];
+      r.push([[-0.8, -0.5, 0], [0.8, -0.5, 0]]);
+      r.push([[0.8, -0.5, 0], [0.8, 0.5, 0]]);
+      r.push([[0.8, 0.5, 0], [-0.8, 0.5, 0]]);
+      r.push([[-0.8, 0.5, 0], [-0.8, -0.5, 0]]);
+      r.push([[-0.8, 0.5, 0], [0, 0, 0]]);
+      r.push([[0.8, 0.5, 0], [0, 0, 0]]);
+      r.push([[0, -0.5, 0], [0, -1.2, 0]]);
+      r.push([[0, -1.2, 0], [-0.3, -0.9, 0]]);
+      r.push([[0, -1.2, 0], [0.3, -0.9, 0]]);
+      const r3d: [number,number,number][][] = [];
+      for(const [p1, p2] of r) {
+        r3d.push([[p1[0], p1[1], 0.2], [p2[0], p2[1], 0.2]]);
+        r3d.push([[p1[0], p1[1], -0.2], [p2[0], p2[1], -0.2]]);
+        r3d.push([[p1[0], p1[1], 0.2], [p1[0], p1[1], -0.2]]);
+      }
+      return r3d;
+    }
     default: return [];
   }
 }
@@ -204,84 +280,129 @@ export default function HeroScene() {
     };
     window.addEventListener("mousemove", handleMouse);
 
-    // Engineering-themed shapes
+    // Webhook infrastructure themed shapes
     const shapes: Shape[] = [
       {
         x: 0, y: -25, z: 0,
         rotX: 0, rotY: 0, rotZ: 0,
         vRotX: 0.004, vRotY: 0.007, vRotZ: 0.001,
-        size: 120, type: "shield",
-        color: "rgba(255, 255, 255, 0.5)",
-        glow: "rgba(255, 255, 255, 0.12)",
+        size: 320, type: "server",
+        color: "rgba(255, 255, 255, 0.4)",
+        glow: "rgba(255, 255, 255, 0.1)",
         floatOffset: 0, floatSpeed: 0.5,
       },
       {
-        x: -260, y: 120, z: 50,
+        x: -460, y: 160, z: 50,
         rotX: 0.3, rotY: 0.5, rotZ: 0,
         vRotX: 0.005, vRotY: 0.009, vRotZ: 0.003,
-        size: 75, type: "hexgrid",
-        color: "rgba(100, 180, 255, 0.35)",
-        glow: "rgba(100, 180, 255, 0.1)",
+        size: 180, type: "database",
+        color: "rgba(255, 255, 255, 0.3)",
+        glow: "rgba(255, 255, 255, 0.08)",
         floatOffset: 1.5, floatSpeed: 0.7,
       },
       {
-        x: 280, y: 90, z: 40,
+        x: 480, y: 130, z: 40,
         rotX: 0, rotY: 0.2, rotZ: 0.4,
         vRotX: 0.007, vRotY: 0.005, vRotZ: 0.006,
-        size: 65, type: "circuit",
-        color: "rgba(60, 200, 120, 0.35)",
-        glow: "rgba(60, 200, 120, 0.1)",
+        size: 160, type: "queue",
+        color: "rgba(255, 255, 255, 0.3)",
+        glow: "rgba(255, 255, 255, 0.08)",
         floatOffset: 3.0, floatSpeed: 0.65,
       },
       {
-        x: -150, y: -180, z: 60,
+        x: -350, y: -280, z: 60,
         rotX: 1.2, rotY: 0, rotZ: 0,
         vRotX: 0.003, vRotY: 0.012, vRotZ: 0,
-        size: 80, type: "node",
-        color: "rgba(255, 180, 50, 0.3)",
-        glow: "rgba(255, 180, 50, 0.09)",
+        size: 210, type: "webhook",
+        color: "rgba(255, 255, 255, 0.35)",
+        glow: "rgba(255, 255, 255, 0.09)",
         floatOffset: 2.0, floatSpeed: 0.6,
       },
       {
-        x: 240, y: -160, z: 55,
+        x: 420, y: -260, z: 55,
         rotX: 0.5, rotY: 0.8, rotZ: 0.2,
         vRotX: 0.006, vRotY: 0.004, vRotZ: 0.007,
-        size: 55, type: "pipe",
-        color: "rgba(160, 120, 255, 0.3)",
-        glow: "rgba(160, 120, 255, 0.09)",
+        size: 150, type: "server",
+        color: "rgba(255, 255, 255, 0.25)",
+        glow: "rgba(255, 255, 255, 0.07)",
         floatOffset: 4.0, floatSpeed: 0.75,
       },
       {
-        x: -280, y: -80, z: 80,
+        x: -520, y: -120, z: 80,
         rotX: 0.2, rotY: 0.3, rotZ: 0.1,
         vRotX: 0.008, vRotY: 0.006, vRotZ: 0.004,
-        size: 50, type: "bracket",
-        color: "rgba(220, 80, 80, 0.3)",
-        glow: "rgba(220, 80, 80, 0.09)",
+        size: 140, type: "queue",
+        color: "rgba(255, 255, 255, 0.2)",
+        glow: "rgba(255, 255, 255, 0.06)",
         floatOffset: 5.0, floatSpeed: 0.55,
       },
       {
-        x: 80, y: 200, z: 70,
+        x: 180, y: 350, z: 70,
         rotX: 0, rotY: 0.4, rotZ: 0.6,
         vRotX: 0.005, vRotY: 0.01, vRotZ: 0.002,
-        size: 45, type: "hexgrid",
-        color: "rgba(100, 200, 180, 0.25)",
-        glow: "rgba(100, 200, 180, 0.06)",
+        size: 130, type: "database",
+        color: "rgba(255, 255, 255, 0.2)",
+        glow: "rgba(255, 255, 255, 0.05)",
         floatOffset: 1.0, floatSpeed: 0.85,
       },
       {
-        x: -70, y: 220, z: 90,
+        x: -150, y: 380, z: 90,
         rotX: 0.8, rotY: 0.2, rotZ: 0,
         vRotX: 0.004, vRotY: 0.007, vRotZ: 0.005,
-        size: 65, type: "circuit",
-        color: "rgba(180, 160, 220, 0.2)",
-        glow: "rgba(180, 160, 220, 0.05)",
+        size: 170, type: "server",
+        color: "rgba(255, 255, 255, 0.25)",
+        glow: "rgba(255, 255, 255, 0.06)",
         floatOffset: 3.5, floatSpeed: 0.5,
+      },
+      {
+        x: 600, y: 0, z: 120,
+        rotX: 0.5, rotY: -0.2, rotZ: 0.8,
+        vRotX: 0.008, vRotY: -0.005, vRotZ: 0.003,
+        size: 190, type: "webhook",
+        color: "rgba(255, 255, 255, 0.15)",
+        glow: "rgba(255, 255, 255, 0.04)",
+        floatOffset: 2.5, floatSpeed: 0.4,
+      },
+      {
+        x: -650, y: 200, z: 150,
+        rotX: -0.4, rotY: 0.6, rotZ: 0.1,
+        vRotX: -0.003, vRotY: 0.01, vRotZ: 0.002,
+        size: 200, type: "queue",
+        color: "rgba(255, 255, 255, 0.15)",
+        glow: "rgba(255, 255, 255, 0.04)",
+        floatOffset: 4.5, floatSpeed: 0.6,
+      },
+      {
+        x: -50, y: -450, z: 100,
+        rotX: 1.0, rotY: -0.5, rotZ: 0.3,
+        vRotX: 0.005, vRotY: -0.008, vRotZ: 0.004,
+        size: 220, type: "database",
+        color: "rgba(255, 255, 255, 0.2)",
+        glow: "rgba(255, 255, 255, 0.05)",
+        floatOffset: 1.2, floatSpeed: 0.8,
+      },
+      {
+        x: 350, y: 380, z: 180,
+        rotX: 0.1, rotY: -0.8, rotZ: -0.4,
+        vRotX: 0.002, vRotY: -0.006, vRotZ: -0.005,
+        size: 160, type: "webhook",
+        color: "rgba(255, 255, 255, 0.15)",
+        glow: "rgba(255, 255, 255, 0.04)",
+        floatOffset: 3.2, floatSpeed: 0.7,
+      },
+      {
+        x: -400, y: -400, z: 200,
+        rotX: 0.7, rotY: 0.4, rotZ: 0.5,
+        vRotX: 0.006, vRotY: 0.003, vRotZ: 0.008,
+        size: 180, type: "server",
+        color: "rgba(255, 255, 255, 0.15)",
+        glow: "rgba(255, 255, 255, 0.04)",
+        floatOffset: 5.5, floatSpeed: 0.45,
       },
     ];
 
     const edgesCache: Record<string, [number,number,number][][]> = {};
-    for (const t of ["shield","hexgrid","circuit","node","pipe","bracket"]) {
+    for (const t of ["shield","hexgrid","circuit","node","pipe","bracket","server","database","queue","webhook"]) {
       edgesCache[t] = getEdges(t);
     }
 
@@ -307,7 +428,7 @@ export default function HeroScene() {
       const offsetY = (time * 3) % (hexSize * Math.sqrt(3));
 
       ctx.save();
-      ctx.strokeStyle = "rgba(100, 180, 255, 0.035)";
+      ctx.strokeStyle = "rgba(164, 164, 164, 0.035)";
       ctx.lineWidth = 0.9;
 
       for (let row = -1; row < rows; row++) {
@@ -333,7 +454,7 @@ export default function HeroScene() {
     // Circuit board trace overlay
     const drawCircuitTraces = (cx: number, cy: number) => {
       ctx.save();
-      ctx.strokeStyle = "rgba(60, 200, 120, 0.03)";
+      ctx.strokeStyle = "rgba(149, 149, 149, 0.03)";
       ctx.lineWidth = 1.5;
 
       const traceY = H() * 0.85;
@@ -396,7 +517,7 @@ export default function HeroScene() {
         ctx.beginPath();
         ctx.moveTo(0, yPos);
         ctx.lineTo(w, yPos);
-        ctx.strokeStyle = `rgba(100, 180, 255, ${alpha})`;
+        ctx.strokeStyle = `rgba(164, 164, 164, ${alpha})`;
         ctx.lineWidth = 0.8;
         ctx.stroke();
       }
@@ -407,7 +528,7 @@ export default function HeroScene() {
         ctx.beginPath();
         ctx.moveTo(vanishX, vanishY);
         ctx.lineTo(baseX, gridY + 30);
-        ctx.strokeStyle = `rgba(100, 180, 255, ${Math.max(0, alpha)})`;
+        ctx.strokeStyle = `rgba(164, 164, 164, ${Math.max(0, alpha)})`;
         ctx.lineWidth = 0.8;
         ctx.stroke();
       }
@@ -422,13 +543,14 @@ export default function HeroScene() {
         ctx.beginPath();
         ctx.arc(pp.sx, pp.sy, p.size * pp.scale, 0, Math.PI * 2);
         ctx.fillStyle = p.isRetry
-          ? `rgba(255, 180, 50, ${alpha * 0.7})`
-          : `rgba(100, 180, 255, ${alpha})`;
+          ? `rgba(187, 187, 187, ${alpha * 0.7})`
+          : `rgba(164, 164, 164, ${alpha})`;
         ctx.fill();
       }
 
-      // Draw 3D shapes
-      for (const shape of shapes) {
+      // Draw 3D shapes sorted by Z (descending, so furthest first)
+      const sortedShapes = [...shapes].sort((a, b) => b.z - a.z);
+      for (const shape of sortedShapes) {
         shape.rotX += shape.vRotX;
         shape.rotY += shape.vRotY;
         shape.rotZ += shape.vRotZ;
@@ -498,7 +620,7 @@ export default function HeroScene() {
       const scanY = (time * 45) % h;
       const scanGrad = ctx.createLinearGradient(0, scanY - 70, 0, scanY + 70);
       scanGrad.addColorStop(0, "transparent");
-      scanGrad.addColorStop(0.5, "rgba(100, 180, 255, 0.02)");
+      scanGrad.addColorStop(0.5, "rgba(164, 164, 164, 0.02)");
       scanGrad.addColorStop(1, "transparent");
       ctx.fillStyle = scanGrad;
       ctx.fillRect(0, scanY - 70, w, 140);

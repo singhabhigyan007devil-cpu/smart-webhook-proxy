@@ -61,6 +61,11 @@ async def init_db() -> None:
             pass
         
         try:
+            await conn.execute(text("ALTER TABLE endpoints ADD COLUMN rate_limit_rpm INTEGER DEFAULT 600 NOT NULL"))
+        except Exception:
+            pass
+        
+        try:
             await conn.execute(text("ALTER TABLE idempotency_keys ADD COLUMN expires_at DATETIME"))
         except Exception:
             pass

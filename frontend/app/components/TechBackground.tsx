@@ -163,7 +163,7 @@ export default function TechBackground() {
         ctx.beginPath();
         ctx.moveTo(0, yPos);
         ctx.lineTo(W(), yPos);
-        ctx.strokeStyle = `rgba(100, 160, 255, ${alpha})`;
+        ctx.strokeStyle = `rgba(152, 152, 152, ${alpha})`;
         ctx.lineWidth = 0.6;
         ctx.stroke();
       }
@@ -174,7 +174,7 @@ export default function TechBackground() {
         ctx.beginPath();
         ctx.moveTo(vanishX, vanishY);
         ctx.lineTo(baseX, gridY + 30);
-        ctx.strokeStyle = `rgba(100, 160, 255, ${Math.max(0, alpha)})`;
+        ctx.strokeStyle = `rgba(152, 152, 152, ${Math.max(0, alpha)})`;
         ctx.lineWidth = 0.6;
         ctx.stroke();
       }
@@ -191,28 +191,28 @@ export default function TechBackground() {
       const pulse = Math.sin(server.pulsePhase) * 0.15 + 1;
 
       // State colors
-      let bodyColor = "rgba(60, 180, 120, 0.35)";
-      let borderColor = "rgba(60, 180, 120, 0.6)";
-      let glowColor = "rgba(60, 180, 120, 0.12)";
-      let statusDot = "#3cb478";
+      let bodyColor = "rgba(137, 137, 137, 0.35)";
+      let borderColor = "rgba(137, 137, 137, 0.6)";
+      let glowColor = "rgba(137, 137, 137, 0.12)";
+      let statusDot = "#898989";
 
       if (server.state === "degraded") {
-        bodyColor = "rgba(220, 180, 50, 0.35)";
-        borderColor = "rgba(220, 180, 50, 0.6)";
-        glowColor = "rgba(220, 180, 50, 0.12)";
-        statusDot = "#dcb432";
+        bodyColor = "rgba(177, 177, 177, 0.35)";
+        borderColor = "rgba(177, 177, 177, 0.6)";
+        glowColor = "rgba(177, 177, 177, 0.12)";
+        statusDot = "#b1b1b1";
       } else if (server.state === "failed") {
         const failPulse = Math.sin(time * 4) * 0.2 + 0.8;
-        bodyColor = `rgba(220, 60, 60, ${0.35 * failPulse})`;
-        borderColor = `rgba(220, 60, 60, ${0.7 * failPulse})`;
-        glowColor = `rgba(220, 60, 60, ${0.15 * failPulse})`;
-        statusDot = "#dc3c3c";
+        bodyColor = `rgba(107, 107, 107, ${0.35 * failPulse})`;
+        borderColor = `rgba(107, 107, 107, ${0.7 * failPulse})`;
+        glowColor = `rgba(107, 107, 107, ${0.15 * failPulse})`;
+        statusDot = "#6b6b6b";
       } else if (server.state === "recovering") {
         const recPulse = Math.sin(time * 3) * 0.3 + 0.7;
-        bodyColor = `rgba(80, 200, 255, ${0.35 * recPulse})`;
-        borderColor = `rgba(80, 200, 255, ${0.6 * recPulse})`;
-        glowColor = `rgba(80, 200, 255, ${0.12 * recPulse})`;
-        statusDot = "#50c8ff";
+        bodyColor = `rgba(170, 170, 170, ${0.35 * recPulse})`;
+        borderColor = `rgba(170, 170, 170, ${0.6 * recPulse})`;
+        glowColor = `rgba(170, 170, 170, ${0.12 * recPulse})`;
+        statusDot = "#aaaaaa";
       }
 
       // Glow
@@ -295,8 +295,8 @@ export default function TechBackground() {
       // Connection line
       const isDegraded = conn.health < 0.5;
       const lineColor = isDegraded
-        ? `rgba(220, 60, 60, ${0.3 + Math.sin(time * 3) * 0.15})`
-        : `rgba(100, 180, 255, 0.15)`;
+        ? `rgba(107, 107, 107, ${0.3 + Math.sin(time * 3) * 0.15})`
+        : `rgba(164, 164, 164, 0.15)`;
 
       ctx.beginPath();
       ctx.moveTo(pFrom.sx, pFrom.sy);
@@ -317,8 +317,8 @@ export default function TechBackground() {
         const py = pFrom.sy + (pTo.sy - pFrom.sy) * t;
 
         const pColor = isDegraded
-          ? `rgba(220, 100, 60, ${0.6 * (1 - Math.abs(t - 0.5) * 2)})`
-          : `rgba(120, 200, 255, ${0.5 * (1 - Math.abs(t - 0.5) * 2)})`;
+          ? `rgba(131, 131, 131, ${0.6 * (1 - Math.abs(t - 0.5) * 2)})`
+          : `rgba(182, 182, 182, ${0.5 * (1 - Math.abs(t - 0.5) * 2)})`;
 
         ctx.beginPath();
         ctx.arc(px, py, 5, 0, Math.PI * 2);
@@ -338,10 +338,10 @@ export default function TechBackground() {
           ctx.lineTo(tp.sx, tp.sy);
         }
         const trailColor = pkt.state === "normal"
-          ? "rgba(100, 200, 255, 0.15)"
+          ? "rgba(176, 176, 176, 0.15)"
           : pkt.state === "retrying"
-          ? "rgba(255, 180, 50, 0.2)"
-          : "rgba(220, 60, 60, 0.2)";
+          ? "rgba(187, 187, 187, 0.2)"
+          : "rgba(107, 107, 107, 0.2)";
         ctx.strokeStyle = trailColor;
         ctx.lineWidth = 1.5;
         ctx.stroke();
@@ -351,18 +351,18 @@ export default function TechBackground() {
       const s = pkt.size * p.scale;
 
       // Glow based on state
-      let glowCol = "rgba(100, 200, 255, 0.3)";
-      let coreCol = "rgba(140, 220, 255, 0.9)";
+      let glowCol = "rgba(176, 176, 176, 0.3)";
+      let coreCol = "rgba(200, 200, 200, 0.9)";
       if (pkt.state === "retrying") {
         const blink = Math.sin(time * 8) > 0 ? 1 : 0.4;
-        glowCol = `rgba(255, 180, 50, ${0.3 * blink})`;
-        coreCol = `rgba(255, 200, 80, ${0.9 * blink})`;
+        glowCol = `rgba(187, 187, 187, ${0.3 * blink})`;
+        coreCol = `rgba(202, 202, 202, ${0.9 * blink})`;
       } else if (pkt.state === "dropped") {
-        glowCol = "rgba(220, 60, 60, 0.4)";
-        coreCol = "rgba(255, 80, 80, 0.9)";
+        glowCol = "rgba(107, 107, 107, 0.4)";
+        coreCol = "rgba(132, 132, 132, 0.9)";
       } else if (pkt.state === "queued") {
-        glowCol = "rgba(160, 120, 255, 0.3)";
-        coreCol = "rgba(180, 140, 255, 0.9)";
+        glowCol = "rgba(147, 147, 147, 0.3)";
+        coreCol = "rgba(165, 165, 165, 0.9)";
       }
 
       // Outer glow
@@ -388,7 +388,7 @@ export default function TechBackground() {
       // Retry count badge
       if (pkt.retryCount > 0) {
         ctx.font = `bold ${Math.max(14, 16 * p.scale)}px 'SF Mono', monospace`;
-        ctx.fillStyle = pkt.state === "dropped" ? "rgba(255, 80, 80, 0.9)" : "rgba(255, 200, 80, 0.9)";
+        ctx.fillStyle = pkt.state === "dropped" ? "rgba(132, 132, 132, 0.9)" : "rgba(202, 202, 202, 0.9)";
         ctx.textAlign = "center";
         ctx.fillText(`R${pkt.retryCount}`, p.sx, p.sy - s - 6);
       }
@@ -399,7 +399,7 @@ export default function TechBackground() {
       const r = wave.radius * p.scale;
       ctx.beginPath();
       ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(255, 180, 50, ${wave.alpha * 0.4})`;
+      ctx.strokeStyle = `rgba(187, 187, 187, ${wave.alpha * 0.4})`;
       ctx.lineWidth = 3.5;
       ctx.stroke();
 
@@ -407,7 +407,7 @@ export default function TechBackground() {
       if (wave.radius > 20) {
         ctx.beginPath();
         ctx.arc(p.sx, p.sy, r * 0.6, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255, 180, 50, ${wave.alpha * 0.2})`;
+        ctx.strokeStyle = `rgba(187, 187, 187, ${wave.alpha * 0.2})`;
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -427,8 +427,8 @@ export default function TechBackground() {
         // Some particles are "data" (blue), some are "errors" (red)
         const isError = i % 12 === 0;
         const color = isError
-          ? `rgba(220, 80, 80, ${alpha * 0.6})`
-          : `rgba(100, 180, 255, ${alpha * 0.5})`;
+          ? `rgba(121, 121, 121, ${alpha * 0.6})`
+          : `rgba(164, 164, 164, ${alpha * 0.5})`;
 
         ctx.beginPath();
         ctx.arc(p.sx, p.sy, size, 0, Math.PI * 2);
@@ -441,7 +441,7 @@ export default function TechBackground() {
       const scanY = (time * 35) % H();
       const scanGrad = ctx.createLinearGradient(0, scanY - 40, 0, scanY + 40);
       scanGrad.addColorStop(0, "transparent");
-      scanGrad.addColorStop(0.5, "rgba(100, 180, 255, 0.012)");
+      scanGrad.addColorStop(0.5, "rgba(164, 164, 164, 0.012)");
       scanGrad.addColorStop(1, "transparent");
       ctx.fillStyle = scanGrad;
       ctx.fillRect(0, scanY - 40, W(), 80);
@@ -643,7 +643,7 @@ export default function TechBackground() {
       // Background panel
       ctx.save();
       ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-      ctx.strokeStyle = "rgba(100, 180, 255, 0.12)";
+      ctx.strokeStyle = "rgba(164, 164, 164, 0.12)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(rX - 14, rY - 14, rW + 28, rH + 28, 10);
@@ -652,7 +652,7 @@ export default function TechBackground() {
       
       // Header
       ctx.font = "bold 15px 'SF Mono', 'Fira Code', monospace";
-      ctx.fillStyle = "rgba(100, 180, 255, 0.7)";
+      ctx.fillStyle = "rgba(164, 164, 164, 0.7)";
       ctx.textAlign = "left";
       ctx.fillText("RETRY ENGINE", rX, rY + 6);
       
@@ -660,7 +660,7 @@ export default function TechBackground() {
       ctx.beginPath();
       ctx.moveTo(rX, rY + 16);
       ctx.lineTo(rX + rW, rY + 16);
-      ctx.strokeStyle = "rgba(100, 180, 255, 0.1)";
+      ctx.strokeStyle = "rgba(164, 164, 164, 0.1)";
       ctx.stroke();
       
       const retrying = packets.filter(p => p.state === "retrying").length;
@@ -672,11 +672,11 @@ export default function TechBackground() {
       // Status dot + RETRYING
       ctx.beginPath();
       ctx.arc(rX + 8, rY + 38, 5, 0, Math.PI * 2);
-      ctx.fillStyle = retrying > 0 ? "rgba(255, 180, 50, 0.8)" : "rgba(60, 180, 120, 0.5)";
+      ctx.fillStyle = retrying > 0 ? "rgba(187, 187, 187, 0.8)" : "rgba(137, 137, 137, 0.5)";
       ctx.fill();
-      ctx.fillStyle = retrying > 0 ? "rgba(255, 200, 80, 0.9)" : "rgba(255, 255, 255, 0.4)";
+      ctx.fillStyle = retrying > 0 ? "rgba(202, 202, 202, 0.9)" : "rgba(255, 255, 255, 0.4)";
       ctx.fillText(`RETRYING`, rX + 20, rY + 43);
-      ctx.fillStyle = retrying > 0 ? "rgba(255, 200, 80, 0.9)" : "rgba(255, 255, 255, 0.5)";
+      ctx.fillStyle = retrying > 0 ? "rgba(202, 202, 202, 0.9)" : "rgba(255, 255, 255, 0.5)";
       ctx.textAlign = "right";
       ctx.fillText(`${retrying}`, rX + rW, rY + 43);
       ctx.textAlign = "left";
@@ -684,11 +684,11 @@ export default function TechBackground() {
       // Status dot + QUEUED
       ctx.beginPath();
       ctx.arc(rX + 8, rY + 62, 5, 0, Math.PI * 2);
-      ctx.fillStyle = queued > 0 ? "rgba(160, 120, 255, 0.8)" : "rgba(60, 180, 120, 0.5)";
+      ctx.fillStyle = queued > 0 ? "rgba(147, 147, 147, 0.8)" : "rgba(137, 137, 137, 0.5)";
       ctx.fill();
-      ctx.fillStyle = queued > 0 ? "rgba(180, 140, 255, 0.9)" : "rgba(255, 255, 255, 0.4)";
+      ctx.fillStyle = queued > 0 ? "rgba(165, 165, 165, 0.9)" : "rgba(255, 255, 255, 0.4)";
       ctx.fillText(`QUEUED`, rX + 20, rY + 67);
-      ctx.fillStyle = queued > 0 ? "rgba(180, 140, 255, 0.9)" : "rgba(255, 255, 255, 0.5)";
+      ctx.fillStyle = queued > 0 ? "rgba(165, 165, 165, 0.9)" : "rgba(255, 255, 255, 0.5)";
       ctx.textAlign = "right";
       ctx.fillText(`${queued}`, rX + rW, rY + 67);
       ctx.textAlign = "left";
@@ -696,11 +696,11 @@ export default function TechBackground() {
       // Status dot + DROPPED
       ctx.beginPath();
       ctx.arc(rX + 8, rY + 86, 5, 0, Math.PI * 2);
-      ctx.fillStyle = dropped > 0 ? "rgba(220, 60, 60, 0.8)" : "rgba(60, 180, 120, 0.5)";
+      ctx.fillStyle = dropped > 0 ? "rgba(107, 107, 107, 0.8)" : "rgba(137, 137, 137, 0.5)";
       ctx.fill();
-      ctx.fillStyle = dropped > 0 ? "rgba(255, 80, 80, 0.9)" : "rgba(255, 255, 255, 0.4)";
+      ctx.fillStyle = dropped > 0 ? "rgba(132, 132, 132, 0.9)" : "rgba(255, 255, 255, 0.4)";
       ctx.fillText(`DROPPED`, rX + 20, rY + 91);
-      ctx.fillStyle = dropped > 0 ? "rgba(255, 80, 80, 0.9)" : "rgba(255, 255, 255, 0.5)";
+      ctx.fillStyle = dropped > 0 ? "rgba(132, 132, 132, 0.9)" : "rgba(255, 255, 255, 0.5)";
       ctx.textAlign = "right";
       ctx.fillText(`${dropped}`, rX + rW, rY + 91);
       
@@ -714,7 +714,7 @@ export default function TechBackground() {
       
       ctx.save();
       ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-      ctx.strokeStyle = "rgba(100, 180, 255, 0.12)";
+      ctx.strokeStyle = "rgba(164, 164, 164, 0.12)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(qX - 14, qY - 14, qW + 28, qH + 28, 10);
@@ -722,14 +722,14 @@ export default function TechBackground() {
       ctx.stroke();
       
       ctx.font = "bold 15px 'SF Mono', 'Fira Code', monospace";
-      ctx.fillStyle = "rgba(100, 180, 255, 0.7)";
+      ctx.fillStyle = "rgba(164, 164, 164, 0.7)";
       ctx.textAlign = "left";
       ctx.fillText("QUEUE DEPTH", qX, qY + 6);
       
       ctx.beginPath();
       ctx.moveTo(qX, qY + 16);
       ctx.lineTo(qX + qW, qY + 16);
-      ctx.strokeStyle = "rgba(100, 180, 255, 0.1)";
+      ctx.strokeStyle = "rgba(164, 164, 164, 0.1)";
       ctx.stroke();
       
       // Bar chart
@@ -740,13 +740,13 @@ export default function TechBackground() {
       for (let i = 0; i < barCount; i++) {
         const h = (Math.sin(time * 2 + i * 0.5) * 0.5 + 0.5) * maxBarH * 0.5 + 8;
         const isHigh = h > maxBarH * 0.6;
-        ctx.fillStyle = isHigh ? "rgba(220, 100, 60, 0.5)" : "rgba(100, 180, 255, 0.35)";
+        ctx.fillStyle = isHigh ? "rgba(131, 131, 131, 0.5)" : "rgba(164, 164, 164, 0.35)";
         ctx.fillRect(qX + i * (barW + barGap), qY + 24 + (maxBarH - h), barW, h);
       }
       
       // Active count
       ctx.font = "14px 'SF Mono', 'Fira Code', monospace";
-      ctx.fillStyle = "rgba(100, 180, 255, 0.5)";
+      ctx.fillStyle = "rgba(164, 164, 164, 0.5)";
       ctx.fillText(`ACTIVE: ${packets.filter(p => p.state !== "dropped").length}`, qX, qY + maxBarH + 40);
       
       ctx.restore();
@@ -759,7 +759,7 @@ export default function TechBackground() {
       
       ctx.save();
       ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-      ctx.strokeStyle = "rgba(100, 180, 255, 0.12)";
+      ctx.strokeStyle = "rgba(164, 164, 164, 0.12)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(cbX - 14, cbY - 14, cbW + 28, cbH + 28, 10);
@@ -767,18 +767,18 @@ export default function TechBackground() {
       ctx.stroke();
       
       ctx.font = "bold 15px 'SF Mono', 'Fira Code', monospace";
-      ctx.fillStyle = "rgba(100, 180, 255, 0.7)";
+      ctx.fillStyle = "rgba(164, 164, 164, 0.7)";
       ctx.textAlign = "left";
       ctx.fillText("CIRCUIT BREAKER", cbX, cbY + 6);
       
       ctx.beginPath();
       ctx.moveTo(cbX, cbY + 16);
       ctx.lineTo(cbX + cbW, cbY + 16);
-      ctx.strokeStyle = "rgba(100, 180, 255, 0.1)";
+      ctx.strokeStyle = "rgba(164, 164, 164, 0.1)";
       ctx.stroke();
       
       const cbState = failureCyclePhase === 1 ? "OPEN" : failureCyclePhase === 2 ? "HALF-OPEN" : "CLOSED";
-      const cbColor = failureCyclePhase === 1 ? "rgba(220, 60, 60, 0.9)" : failureCyclePhase === 2 ? "rgba(255, 180, 50, 0.8)" : "rgba(60, 180, 120, 0.8)";
+      const cbColor = failureCyclePhase === 1 ? "rgba(107, 107, 107, 0.9)" : failureCyclePhase === 2 ? "rgba(187, 187, 187, 0.8)" : "rgba(137, 137, 137, 0.8)";
       
       // Circuit breaker icon (larger)
       ctx.beginPath();
