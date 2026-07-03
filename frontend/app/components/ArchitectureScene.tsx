@@ -23,7 +23,7 @@ function projectPoint(
   x: number, y: number, z: number,
   cx: number, cy: number, fov: number
 ): { sx: number; sy: number; scale: number } {
-  const perspective = fov / (fov + z);
+  const perspective = (fov / (fov + z)) * 1.4;
   return {
     sx: x * perspective + cx,
     sy: y * perspective + cy,
@@ -155,7 +155,7 @@ export default function ArchitectureScene() {
     const resize = () => {
       const rect = canvas.parentElement?.getBoundingClientRect();
       if (rect) {
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         canvas.style.width = rect.width + "px";

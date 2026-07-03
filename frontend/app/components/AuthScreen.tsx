@@ -285,12 +285,12 @@ export default function AuthScreen({ onLogin }: { onLogin: (apiKey: string, emai
       </section>
 
       {/* Architecture Visualizer */}
-      <section className="relative h-[600px] border-b border-t border-white/[0.05] bg-[#050505] overflow-hidden">
-        <div className="absolute inset-0 z-0 mt-10">
+      <section className="relative h-[700px] border-b border-t border-white/[0.05] bg-[#050505] overflow-hidden">
+        <div className="absolute inset-0 z-0 mt-28">
           <ArchitectureScene />
         </div>
         <div className="absolute inset-0 z-[1] bg-gradient-to-r from-black via-transparent to-black pointer-events-none" />
-        <div className="absolute top-10 inset-x-0 z-10 pointer-events-none px-6">
+        <div className="absolute top-4 inset-x-0 z-10 pointer-events-none px-6">
           <div className="flex flex-col items-center text-center">
             <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-3">Robust Webhook Pipeline</h2>
             <p className="text-white/50 max-w-xl text-sm md:text-base mx-auto">
