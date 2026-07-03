@@ -120,3 +120,22 @@ To secure your application and satisfy OAuth provider requirements, you must ena
    sudo ./init-letsencrypt.sh
    ```
 5. Your application is now securely available over HTTPS! The certificates will renew automatically in the background.
+
+---
+
+## Step 7: Automated Deployments via GitHub Actions (CI/CD)
+
+HookShield includes a pre-configured GitHub Actions workflow (`.github/workflows/deploy.yml`) that automatically deploys your latest code to your VPS whenever you push changes to the `main` branch. 
+
+To enable this, you must configure **GitHub Secrets** in your repository:
+
+1. Go to your repository on GitHub.
+2. Click **Settings** > **Secrets and variables** > **Actions**.
+3. Click **New repository secret** and add the following three secrets:
+   
+   - **`SERVER_HOST`**: The IP address of your DigitalOcean Droplet (e.g., `142.25.12.99`).
+   - **`SERVER_USER`**: The SSH username for your Droplet (usually `root`).
+   - **`SERVER_SSH_KEY`**: An SSH private key that has access to your server. 
+     - *Tip:* If you used a password in Step 1, you'll need to generate an SSH key on your personal computer (`ssh-keygen`), add the **public key** to your Droplet's `~/.ssh/authorized_keys` file, and paste the **private key** into this GitHub secret.
+
+Once these secrets are saved, any code you push to the `main` branch will automatically trigger the workflow, pull the new code on your VPS, and restart the Docker containers!
