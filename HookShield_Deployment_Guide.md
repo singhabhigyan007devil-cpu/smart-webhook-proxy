@@ -96,6 +96,8 @@ Now, you will log into your server and install Docker.
    ```bash
    docker-compose --env-file .env.production up -d --build
    ```
+   > [!NOTE]
+   > The backend container is configured to automatically run database migrations (via Alembic) when it starts. You do not need to initialize the database schema manually.
 
 **Congratulations!** 
 HookShield is now running on your server. Visit your Droplet's IP address (or your domain name) in your browser to see your live application.

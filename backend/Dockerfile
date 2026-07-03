@@ -22,5 +22,10 @@ ENV PYTHONPATH=/app
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Command to run the application using uvicorn via gunicorn for production
+# Set working directory for alembic and entrypoint
+WORKDIR /app/backend
+RUN chmod +x /app/backend/entrypoint.sh
+
+# Run migrations and start server
+ENTRYPOINT ["/app/backend/entrypoint.sh"]
 CMD ["gunicorn", "backend.app.main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
