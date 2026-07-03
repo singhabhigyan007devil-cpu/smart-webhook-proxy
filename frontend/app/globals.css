@@ -59,7 +59,7 @@
 }
 
 html {
-  font-size: 175%; /* Significantly increase global text size to account for small serif font */
+  font-size: 87.5%; /* Decreased font size by 50% */
 }
 
 body {
