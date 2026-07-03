@@ -99,3 +99,22 @@ Now, you will log into your server and install Docker.
 
 **Congratulations!** 
 HookShield is now running on your server. Visit your Droplet's IP address (or your domain name) in your browser to see your live application.
+
+---
+
+## Step 6: Enable HTTPS / SSL (Certbot)
+To secure your application and satisfy OAuth provider requirements, you must enable HTTPS using Let's Encrypt.
+
+1. Ensure you have pointed your domain name to your server's IP address (Step 2).
+2. Open `nginx/nginx.conf` and `init-letsencrypt.sh` in the code editor on your server (or before pushing to GitHub).
+   - Find all instances of `yourdomain.com` and replace them with your actual domain name (e.g., `hookshield.io`).
+   - In `init-letsencrypt.sh`, you can optionally add your email to the `email=""` variable for expiry notifications.
+3. Make the initialization script executable:
+   ```bash
+   chmod +x init-letsencrypt.sh
+   ```
+4. Run the initialization script to fetch your certificates and start the proxy:
+   ```bash
+   sudo ./init-letsencrypt.sh
+   ```
+5. Your application is now securely available over HTTPS! The certificates will renew automatically in the background.
