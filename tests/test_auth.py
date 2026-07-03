@@ -6,7 +6,7 @@ async def test_user_registration_and_login(client: AsyncClient):
     # 1. Register a new user
     register_payload = {
         "email": "testauth@example.com",
-        "password": "strongpassword123"
+        "password": "StrongPassword123!"
     }
     res = await client.post("/api/auth/register", json=register_payload)
     assert res.status_code == 201
@@ -22,7 +22,7 @@ async def test_user_registration_and_login(client: AsyncClient):
     # 3. Login with correct credentials
     login_payload = {
         "email": "testauth@example.com",
-        "password": "strongpassword123"
+        "password": "StrongPassword123!"
     }
     res_login = await client.post("/api/auth/login", json=login_payload)
     assert res_login.status_code == 200
@@ -42,7 +42,7 @@ async def test_rotate_api_key(client: AsyncClient):
     # Register user
     register_payload = {
         "email": "testrotate@example.com",
-        "password": "password123"
+        "password": "Password123!"
     }
     res = await client.post("/api/auth/register", json=register_payload)
     data = res.json()
@@ -56,6 +56,9 @@ async def test_rotate_api_key(client: AsyncClient):
     
     assert new_api_key != old_api_key
     assert len(new_api_key) > 10
+
+    # Clear cookies so it doesn't automatically authenticate with the new cookie
+    client.cookies.clear()
 
     # Verify old key no longer works
     res_old = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {old_api_key}"})

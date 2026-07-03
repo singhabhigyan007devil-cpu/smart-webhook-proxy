@@ -12,7 +12,7 @@ interface Bar {
 }
 
 function projectPoint(x: number, y: number, z: number, cx: number, cy: number, fov: number) {
-  const perspective = fov / (fov + z);
+  const perspective = (fov / (fov + z)) * 1.5; // Zoomed in by 1.5x
   return {
     sx: x * perspective + cx,
     sy: y * perspective + cy,
@@ -44,7 +44,7 @@ export default function OutcomeScene() {
     const resize = () => {
       const rect = canvas.parentElement?.getBoundingClientRect();
       if (rect) {
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
         canvas.width = rect.width * dpr;
         canvas.height = rect.height * dpr;
         canvas.style.width = rect.width + "px";

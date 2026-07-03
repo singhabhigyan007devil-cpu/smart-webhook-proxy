@@ -136,13 +136,14 @@ import uuid
 
 @router.post("/rotate-key", response_model=AuthResponse)
 @limiter.limit("5/minute")
-async def rotate_api_key(request: Request, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def rotate_api_key(request: Request, response: Response, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     # Generate new api_key
     new_api_key = str(uuid.uuid4())
     current_user.api_key = new_api_key
     db.add(current_user)
     await db.commit()
     await db.refresh(current_user)
+    response.set_cookie(key="hookshield_session", value=new_api_key, httponly=True, max_age=86400 * 7, samesite="lax")
     return AuthResponse(api_key=new_api_key, email=current_user.email)
 
 
