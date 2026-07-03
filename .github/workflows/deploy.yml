@@ -17,7 +17,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             # Navigate to the project directory
-            cd /opt/hookshield
+            cd /root/hookshield
             
             # Pull the latest changes from the repository
             git fetch --all
