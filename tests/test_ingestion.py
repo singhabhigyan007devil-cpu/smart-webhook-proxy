@@ -56,9 +56,14 @@ async def test_ingest_webhook_success():
         await db.commit()
 
     # 2. Fire request to ingestion URL
+    import hmac
+    import hashlib
     raw_payload = '{"event": "charge.succeeded", "data": {"id": "ch_123"}}'
+    secret = "whsec_123"
+    valid_sig = hmac.new(secret.encode("utf-8"), raw_payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    
     headers = {
-        "Stripe-Signature": "t=123,v1=sig_hash",
+        "X-HookShield-Signature": valid_sig,
         "X-Custom-Header": "value"
     }
 
@@ -107,8 +112,18 @@ async def test_ingest_webhook_paused():
         db.add(endpoint)
         await db.commit()
 
+    import hmac
+    import hashlib
+    raw_payload = "{}"
+    secret = "whsec_123"
+    valid_sig = hmac.new(secret.encode("utf-8"), raw_payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    
+    headers = {
+        "X-HookShield-Signature": valid_sig
+    }
+
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.post("/p/paused-slug", content="{}")
+        response = await ac.post("/p/paused-slug", content=raw_payload, headers=headers)
         # Assert 403 Forbidden due to inactive state
         assert response.status_code == 403
