@@ -780,7 +780,10 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/api/logs/${selectedLog.id}`, {
         method: 'PATCH',
-        headers,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
         body: JSON.stringify({ payload_string: editedPayloadString })
       });
       if (response.ok) {
